@@ -66,10 +66,15 @@ def build_country(iso2: str, out: Path = OUT, gen: Path = GEN) -> Path | None:
 
 def main() -> int:
     countries = sorted({yaml.safe_load(p.read_text())["country_iso"] for p in (CONFIG_DIR / "markets").glob("*.yaml")})
+    failed = False
     for iso2 in countries:
-        p = build_country(iso2)
-        print(iso2, "->", p if p else "no CPI data yet")
-    return 0
+        try:
+            p = build_country(iso2)
+            print(iso2, "->", p if p else "no CPI data yet")
+        except Exception as exc:      # report and keep going so fetched data is still committed
+            failed = True
+            print(iso2, "-> FAILED", type(exc).__name__, exc)
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":

@@ -24,6 +24,7 @@ concurrency:
 jobs:
   fetch:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -34,6 +35,8 @@ jobs:
       - name: Fetch sources
         run: python -m engine.external.fetch
       - name: Build model inputs
+        id: build
+        continue-on-error: true
         run: python -m engine.external.build
       - name: Commit changes
         run: |
@@ -41,6 +44,6 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/external config/macro/generated
           if git diff --cached --quiet; then echo "No changes"; exit 0; fi
-          git commit -m "Update external public data [external-data]"
+          git commit -m "Update external public data [external-data]" -m "Build step outcome: ${{ steps.build.outcome }}"
           for i in 1 2 3; do git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" && exit 0; sleep 5; done
           exit 1

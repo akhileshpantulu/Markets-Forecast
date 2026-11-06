@@ -48,6 +48,11 @@ def fetch_one(src: dict, out: Path = OUT, retries: int = 3, timeout: int = 90) -
                     "sha256": hashlib.sha256(data).hexdigest(), "body_file": body_path.name}
             meta_path.write_text(json.dumps(meta, indent=1), encoding="utf-8")
             return {"id": src["id"], "ok": True, "bytes": len(data), "fetched_at": meta["fetched_at"]}
+        except urllib.error.HTTPError as exc:
+            body = exc.read(600).decode("utf-8", "replace") if hasattr(exc, "read") else ""
+            last_err = f"HTTPError {exc.code}: {body.strip()[:500]}"
+            if 400 <= exc.code < 500 and exc.code != 429:
+                break                      # a client error will not fix itself on retry
         except (urllib.error.URLError, TimeoutError, ValueError, OSError) as exc:
             last_err = f"{type(exc).__name__}: {exc}"
             time.sleep(2 ** attempt)

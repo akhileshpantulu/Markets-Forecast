@@ -44,8 +44,8 @@ def parse_jsonstat(obj: dict) -> pd.DataFrame:
 def parse_imf(obj: dict) -> pd.DataFrame:
     rows = []
     for ind, by_c in (obj.get("values") or {}).items():
-        for country, by_y in by_c.items():
-            for y, v in by_y.items():
+        for country, by_y in (by_c or {}).items():
+            for y, v in (by_y or {}).items():
                 if v is not None:
                     rows.append({"indicator": ind, "country": country, "year": int(y), "value": float(v)})
     return pd.DataFrame(rows, columns=["indicator", "country", "year", "value"])

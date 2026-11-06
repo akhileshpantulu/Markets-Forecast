@@ -104,3 +104,8 @@ def ing_cpi():
     macro = {"cpi_history": {"values": {y: 0.018 for y in range(2000, 2026)}},
              "cpi_projections": {"values": [{"year": y, "rate": 0.02} for y in range(2026, 2032)], "sampling_sd": 0.005}}
     return run_forecast(res, cfg, pri, ppri, macro, n_paths=2000, backtest_paths=200)
+
+
+def test_parse_imf_tolerates_empty_entries():
+    imf = {"values": {"PCPIPCH": {"FRA": {"2025": 0.9}, "XXX": None}, "NGDP": None}}
+    assert len(parse_imf(imf)) == 1

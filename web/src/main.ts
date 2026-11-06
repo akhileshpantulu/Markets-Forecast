@@ -22,7 +22,12 @@ interface Result {
   validation_md: string;
   forecast?: Forecast;
   forecast_error?: string;
+  drivers_error?: string;
+  settings_schema?: SettingGroup[];
 }
+
+interface SettingField { key: string; label: string; kind: string; min?: number; max?: number; step?: number; default: number | boolean | null }
+interface SettingGroup { id: string; title: string; help: string; fields: SettingField[] }
 
 type Q = Quantiles;
 interface SummaryRow { year: number; label: string; occ_growth: Q; occ_pts: Q; adr_growth: Q; revpar_growth: Q; demand_growth: Q;
@@ -46,6 +51,9 @@ interface Forecast {
     benchmarks: Record<string, any>[]; variants: Record<string, any>[]; notes: string[] };
   explanation?: { bridge: Record<string, any>[]; flags: { level: string; year: number | null; text: string }[]; drivers: string[];
     per_year: { year: number; text: string }[]; cumulative_revpar: Record<string, number>; note: string };
+  adjustments?: string[];
+  settings_effective?: Record<string, any>;
+  drivers?: { cards: any[]; applied: any[]; issues: { id: string; level: string; text: string }[]; attribution: any[]; ladder: Record<string, any> };
   macro?: { adr_mode: string; cpi_path: Record<string, number | null> | null; cpi_source: { publisher: string; title: string; url: string; accessed: string } | null; cpi_projection_note: string | null };
   gaps: string[]; assumptions: string[]; notes: string[];
   reports: { history_md: string; backtest_md: string; baseline_md: string };
@@ -60,6 +68,11 @@ const state = {
   result: null as Result | null,
   tab: "overview",
   fcMode: "growth" as "growth" | "level",
+  settings: {} as Record<string, unknown>,
+  customDrivers: [] as any[],
+  driverEdits: {} as Record<string, { enabled?: boolean; probability?: number }>,
+  fileCards: [] as any[],
+  rerunning: false,
   running: false,
   error: "" as string,
 };
@@ -106,6 +119,7 @@ engine.ready
 const DEFAULT_SLOTS: Slot[] = [
   { id: "performance", label: "Market performance", hint: "CoStar DataTable export, monthly", required: true, enabled: true },
   { id: "pipeline", label: "Pipeline", hint: "CoStar property export of pipeline hotels", required: true, enabled: true },
+  { id: "drivers", label: "Drivers", hint: "drivers.yaml from a forecast run, or your own cards (YAML or JSON)", required: false, enabled: true, accept: ".yaml,.yml,.json" },
   { id: "airport", label: "Airline and airport data", hint: "Format to be added once an example is provided", required: false, enabled: false },
   { id: "reference", label: "Country performance", hint: "Format to be confirmed once an example is provided", required: false, enabled: false },
 ];
@@ -132,7 +146,7 @@ function slotView(s: Slot) {
   const f = state.files.get(s.id);
   const inputId = `file-${s.id}`;
   const input = h("input", {
-    type: "file", id: inputId, accept: ".xlsx,.xlsm,.csv", disabled: !s.enabled,
+    type: "file", id: inputId, accept: s.accept ?? ".xlsx,.xlsm,.csv", disabled: !s.enabled,
     onchange: (e: Event) => onFile(s.id, (e.target as HTMLInputElement).files?.[0]),
   });
   const box = h("div", { class: `slot${f ? " has-file" : ""}${s.enabled ? "" : " disabled"}`, "data-slot": s.id },
@@ -196,7 +210,10 @@ async function run() {
   renderInputs();
   try {
     const files = [...state.files.entries()].map(([slot, file]) => ({ slot, file }));
-    state.result = (await engine.run(files, marketChoice())) as Result;
+    loadSaved();
+    state.result = (await engine.run(files, marketChoice(), state.settings, editedCards(state.customDrivers))) as Result;
+    const customIds = new Set(state.customDrivers.map((c) => c.id));
+    state.fileCards = (state.result.forecast?.drivers?.cards ?? []).filter((c: any) => !customIds.has(c.id));
     state.tab = state.result.forecast ? "forecast" : "overview";
   } catch (e) {
     state.error = e instanceof Error ? e.message : String(e);
@@ -214,13 +231,14 @@ const TABS: [string, string][] = [
   ["forecast", "Forecast"],
   ["history", "History"],
   ["backtest", "Backtest"],
+  ["assumptions", "Assumptions"],
   ["pipeline", "Pipeline and supply"],
   ["checks", "Checks"],
   ["guardrails", "Guardrails"],
   ["mapping", "Mapping"],
   ["report", "Reports"],
 ];
-const needsForecast = new Set(["forecast", "history", "backtest"]);
+const needsForecast = new Set(["forecast", "history", "backtest", "assumptions"]);
 
 function badge(status: string, text?: string) {
   const label = text ?? ({ pass: "Pass", warn: "Warning", fail: "Fail", info: "Info" } as Record<string, string>)[status] ?? status;
@@ -265,7 +283,7 @@ function renderResults() {
       role: "tab", type: "button", id: `tab-${id}`, "aria-selected": String(state.tab === id), "aria-controls": "panel",
       disabled: !enabled, title: enabled ? undefined : (r.forecast_error ? "The forecast failed; see Overview" : "Needs data that passes validation"),
       onclick: () => { state.tab = id; renderResults(); },
-    }, label)));
+    }, id === "assumptions" && changedCount() ? `${label} (${changedCount()} changed)` : label)));
   tabs.addEventListener("keydown", (e) => {
     const ids = TABS.map((t) => t[0]).filter((id) => !needsForecast.has(id) || !!r.forecast);
     const i = ids.indexOf(state.tab);
@@ -286,6 +304,7 @@ function renderResults() {
     ),
     r.fatal.length ? h("div", { class: "error-box" }, "The run stopped:", h("ul", {}, r.fatal.map((f) => h("li", {}, f)))) : "",
     r.forecast_error ? h("div", { class: "error-box" }, `The forecast could not run: ${r.forecast_error}`) : "",
+    r.drivers_error ? h("div", { class: "error-box" }, `The drivers file could not be read: ${r.drivers_error}`) : "",
     h("div", { class: "facts" },
       h("div", {}, h("span", {}, "History"), r.meta.first_month && r.meta.last_month ? `${r.meta.first_month} to ${r.meta.last_month}` : "none"),
       r.meta.stub_year ? h("div", {}, h("span", {}, "Stub year"), `${r.meta.stub_year}: ${r.meta.stub_actual_months} actual months`) : null,
@@ -299,7 +318,7 @@ function renderResults() {
     panel,
     h("footer", { class: "foot" }, `Engine ${r.meta.engine_version}. Python runtime: Pyodide ${PYODIDE_VERSION}. Computed in this browser on ${r.meta.date}.`),
   );
-  ({ overview, forecast: forecastView, history: historyView, backtest: backtestView, checks, guardrails, pipeline, mapping, report } as Record<string, (p: HTMLElement, r: Result) => void>)[state.tab]?.(panel, r);
+  ({ overview, forecast: forecastView, history: historyView, backtest: backtestView, assumptions: assumptionsView, checks, guardrails, pipeline, mapping, report } as Record<string, (p: HTMLElement, r: Result) => void>)[state.tab]?.(panel, r);
 }
 
 function overview(p: HTMLElement, r: Result) {
@@ -445,6 +464,11 @@ function forecastView(p: HTMLElement, r: Result) {
     table(["Year", ["Occupancy, P50", "n"], [`ADR (${cur}), P50`, "n"], [`RevPAR (${cur}), P50`, "n"]],
       f.summary.map((x) => [String(x.year), pct(x.occupancy.p50), num(x.adr.p50, 1), num(x.revpar.p50, 1)])),
   );
+  if (f.adjustments?.length) {
+    p.append(h("div", { class: "flags" }, h("div", { class: "flag" }, badge("warn", "Adjusted"),
+      " This run uses your settings, not only the model's defaults: ", f.adjustments.join("; "), ".")));
+  }
+  if (f.drivers?.applied?.length) driversSummary(p, f);
   if (f.explanation) whyView(p, f);
   const toggle = h("div", { class: "downloads", role: "group", "aria-label": "Chart values" },
     (["growth", "level"] as const).map((m) => h("button", { class: `btn${state.fcMode === m ? " primary" : ""}`, type: "button", "aria-pressed": String(state.fcMode === m),
@@ -525,6 +549,216 @@ function forecastView(p: HTMLElement, r: Result) {
   requestAnimationFrame(() => charts.forEach((fn) => fn()));
 }
 
+// ---------- settings, drivers and the Assumptions tab ----------
+const storeKey = () => `hmf-settings:${state.result?.meta.slug ?? "market"}`;
+
+function loadSaved() {
+  try {
+    const raw = localStorage.getItem(`hmf-settings:${state.market === "__other" ? (state.other.name || "market").toLowerCase().replace(/[^a-z0-9]+/g, "-") : state.market}`);
+    if (raw) {
+      const v = JSON.parse(raw);
+      state.settings = v.settings ?? {};
+      state.customDrivers = v.customDrivers ?? [];
+      state.driverEdits = v.driverEdits ?? {};
+    }
+  } catch { /* storage unavailable */ }
+}
+
+function save() {
+  try {
+    localStorage.setItem(storeKey(), JSON.stringify({ settings: state.settings, customDrivers: state.customDrivers, driverEdits: state.driverEdits }));
+  } catch { /* storage unavailable */ }
+}
+
+function changedCount(): number {
+  const schema = state.result?.settings_schema ?? [];
+  const defaults = new Map(schema.flatMap((g) => g.fields.map((f) => [f.key, f.default] as const)));
+  const n = Object.entries(state.settings).filter(([k, v]) => defaults.has(k) && v !== defaults.get(k)).length;
+  const d = Object.values(state.driverEdits).filter((e) => e.enabled === false || e.probability !== undefined).length;
+  return n + d + state.customDrivers.length;
+}
+
+function editedCards(cards: any[]): any[] {
+  return cards.filter((c) => state.driverEdits[c.id]?.enabled !== false).map((c) => {
+    const e = state.driverEdits[c.id];
+    return e?.probability !== undefined ? { ...c, probability: e.probability, probability_note: c.probability_note || "Set by the user on the Assumptions tab." } : c;
+  });
+}
+
+async function rerun() {
+  if (!state.result) return;
+  state.rerunning = true;
+  renderResults();
+  try {
+    const out = (await engine.rerun(state.settings, editedCards([...state.fileCards, ...state.customDrivers]), false)) as Partial<Result>;
+    state.result = { ...state.result, forecast: out.forecast, forecast_error: out.forecast_error };
+  } catch (e) {
+    state.result = { ...state.result, forecast_error: e instanceof Error ? e.message : String(e) };
+  } finally {
+    state.rerunning = false;
+    renderResults();
+  }
+}
+
+function autoValue(key: string, f: Forecast): number | null {
+  const se = f.settings_effective ?? {};
+  if (key === "supply.unannounced_rate") return se.unannounced_rate_used ?? null;
+  if (key === "adr.pricing_power") return se.fitted?.adr_beta ?? null;
+  if (key === "occupancy.ceiling") return se.fitted?.ceiling ?? null;
+  return null;
+}
+
+function fmtSetting(kind: string, v: unknown): string {
+  if (v === null || v === undefined) return "auto";
+  if (typeof v === "boolean") return v ? "on" : "off";
+  const n = Number(v);
+  if (kind === "percent") return `${(n * 100).toFixed(1)}%`;
+  if (kind === "points") return `${n >= 0 ? "+" : ""}${(n * 100).toFixed(1)} pts`;
+  if (kind === "multiplier") return `x${n}`;
+  if (kind === "months") return `${n} months`;
+  return String(Math.round(n * 1000) / 1000);
+}
+
+function settingInput(fd: SettingField, f: Forecast) {
+  const scale = fd.kind === "percent" || fd.kind === "points" ? 100 : 1;
+  const cur = fd.key in state.settings ? state.settings[fd.key] : fd.default;
+  const id = `set-${fd.key.replace(/\./g, "-")}`;
+  if (fd.kind === "bool") {
+    return h("input", { type: "checkbox", id, checked: Boolean(cur), "aria-label": fd.label,
+      onchange: (e: Event) => { state.settings[fd.key] = (e.target as HTMLInputElement).checked; save(); renderResults(); } });
+  }
+  const auto = autoValue(fd.key, f);
+  return h("input", { type: "number", id, class: "num-in", "aria-label": fd.label,
+    step: String((fd.step ?? 0.01) * scale), min: fd.min !== undefined ? String(fd.min * scale) : undefined, max: fd.max !== undefined ? String(fd.max * scale) : undefined,
+    value: cur === null || cur === undefined ? "" : String(Math.round(Number(cur) * scale * 1000) / 1000),
+    placeholder: cur === null && auto !== null ? `auto ${fmtSetting(fd.kind, auto)}` : "auto",
+    onchange: (e: Event) => {
+      const raw = (e.target as HTMLInputElement).value.trim();
+      if (raw === "") { if (fd.default === null) delete state.settings[fd.key]; else state.settings[fd.key] = fd.default; }
+      else state.settings[fd.key] = Number(raw) / scale;
+      save(); renderResults();
+    } });
+}
+
+function assumptionsView(p: HTMLElement, r: Result) {
+  const f = r.forecast!;
+  const schema = r.settings_schema ?? [];
+  const n = changedCount();
+  p.append(
+    h("p", {}, "Change any assumption below, then rerun. The forecast reruns in this browser on the data already loaded, in a few seconds. Every change is listed as a user adjustment in the forecast and in the reports, so it stays separate from the model's own estimates."),
+    h("div", { class: "downloads sticky-actions" },
+      h("button", { class: "btn primary", type: "button", disabled: state.rerunning, onclick: rerun }, state.rerunning ? "Rerunning…" : "Rerun forecast"),
+      h("button", { class: "btn", type: "button", disabled: !n, onclick: () => { state.settings = {}; state.driverEdits = {}; state.customDrivers = []; save(); renderResults(); } }, "Reset to defaults"),
+      h("button", { class: "btn", type: "button", onclick: () => download(`settings-${r.meta.slug}.json`, JSON.stringify({ settings: state.settings, driverEdits: state.driverEdits }, null, 2), "application/json") }, "Download settings"),
+      h("button", { class: "btn", type: "button", onclick: () => download(`drivers-${r.meta.slug}.json`, JSON.stringify({ drivers: editedCards([...state.fileCards, ...state.customDrivers]) }, null, 2), "application/json") }, "Download drivers"),
+      h("span", { class: "msg small muted" }, n ? `${n} change${n > 1 ? "s" : ""} from the defaults. Rerun to apply.` : "All values at their defaults."),
+    ),
+  );
+  for (const g of schema) {
+    p.append(h("h2", {}, g.title), h("p", { class: "note" }, g.help),
+      table(["Setting", ["Value", "n"], ["Default", "n"], ""], g.fields.map((fd) => {
+        const cur = fd.key in state.settings ? state.settings[fd.key] : fd.default;
+        const changed = fd.key in state.settings && state.settings[fd.key] !== fd.default;
+        return [h("label", { for: `set-${fd.key.replace(/\./g, "-")}` }, fd.label), settingInput(fd, f),
+          fmtSetting(fd.kind, fd.default === null ? autoValue(fd.key, f) : fd.default) + (fd.default === null ? " (auto)" : ""),
+          changed ? badge("warn", "changed") : (cur === null ? "" : "")];
+      })));
+  }
+  driversEditor(p, f);
+}
+
+function driversSummary(p: HTMLElement, f: Forecast) {
+  const d = f.drivers!;
+  const att = new Map(d.attribution.map((a: any) => [a.id, a]));
+  const years = f.summary.map((x) => x.year);
+  p.append(h("h2", {}, "Drivers in this forecast"),
+    h("p", { class: "note" }, "Each driver happens in a share of paths equal to its probability, with a size drawn from its range. The columns show how much it moves mean RevPAR growth in each year, measured by rerunning without it."),
+    table(["Driver", ["Chance", "n"], ...years.map((y) => [String(y), "n"] as [string, string])],
+      [...d.applied.map((a: any) => {
+        const at: any = att.get(a.id);
+        return [a.title, pct(a.probability, 0), ...years.map((_, j) => at ? signedPct(at.years[j].revpar_growth_mean) : "")];
+      }),
+      ...(att.has("all") ? [[h("b", {}, "All drivers together"), "", ...years.map((_, j) => h("b", {}, signedPct((att.get("all") as any).years[j].revpar_growth_mean)))]] : [])]));
+}
+
+function driversEditor(p: HTMLElement, f: Forecast) {
+  const issues = f.drivers?.issues ?? [];
+  const ladder = f.drivers?.ladder ?? {};
+  const all = [...state.fileCards.map((c) => ({ c, src: c.origin === "user" ? "file (yours)" : "research" })), ...state.customDrivers.map((c) => ({ c, src: "added here" }))];
+  p.append(h("h2", {}, "Drivers"),
+    h("p", { class: "note" }, "Switch a driver off, or change its chance of happening. For events, the chance follows the status ladder unless you set it: ",
+      Object.entries(ladder).map(([k, v]: [string, any]) => `${k.replace(/_/g, " ")} ${Math.round(v.default * 100)}%`).join(", "), "."));
+  if (!all.length) p.append(h("p", {}, "No drivers loaded. Drop a drivers.yaml on the left, or add one below."));
+  else p.append(table(["Include", "Driver", "Affects", "Year", ["Chance (%)", "n"], "Size if it happens", "Source", "Checks", ""],
+    all.map(({ c, src }) => {
+      const e = state.driverEdits[c.id] ?? {};
+      const pr = e.probability ?? c.probability ?? (c.event_status ? ladder[c.event_status]?.default : null);
+      const unit = c.magnitude.unit === "rooms" ? " rooms" : c.magnitude.unit === "multiplier" ? "x" : "%";
+      const iss = issues.filter((i) => i.id === c.id && i.level !== "info");
+      return [
+        h("input", { type: "checkbox", checked: e.enabled !== false, "aria-label": `Include ${c.title}`,
+          onchange: (ev: Event) => { state.driverEdits[c.id] = { ...e, enabled: (ev.target as HTMLInputElement).checked }; save(); renderResults(); } }),
+        c.title, String(c.affects).replace(/_/g, " "), String(c.timing.start_year),
+        h("input", { type: "number", class: "num-in", min: "0", max: "100", step: "5", "aria-label": `Chance for ${c.title}`,
+          value: pr === null || pr === undefined ? "" : String(Math.round(pr * 1000) / 10),
+          onchange: (ev: Event) => { const v = (ev.target as HTMLInputElement).value.trim(); state.driverEdits[c.id] = { ...e, probability: v === "" ? undefined : Number(v) / 100 }; save(); renderResults(); } }),
+        `${c.magnitude.low} to ${c.magnitude.high}${unit} (most likely ${c.magnitude.mode}${unit})`, src,
+        iss.length ? h("details", {}, h("summary", {}, `${iss.length}`), h("ul", { class: "details" }, iss.map((i) => h("li", {}, `${i.level}: ${i.text}`)))) : "ok",
+        src === "added here" ? h("button", { class: "btn link", type: "button", onclick: () => { state.customDrivers = state.customDrivers.filter((x) => x.id !== c.id); save(); renderResults(); } }, "Remove") : "",
+      ];
+    })));
+
+  // Add a driver
+  const form = h("form", { class: "driver-form", onsubmit: (ev: Event) => {
+    ev.preventDefault();
+    const fd = new FormData(ev.target as HTMLFormElement);
+    const g = (k: string) => String(fd.get(k) ?? "").trim();
+    const affects = g("affects");
+    const unit = affects === "supply" ? "rooms" : affects === "shock_probability" ? "multiplier" : "pct_of_level";
+    const status = g("status");
+    const prob = g("prob");
+    const year = Number(g("year"));
+    const decay = Number(g("decay") || 0);
+    const card: any = {
+      id: `user-${Date.now().toString(36)}`, title: g("title") || "Untitled driver", category: affects === "shock_probability" ? "geopolitical" : "events",
+      affects, timing: { start_year: year, peak_year: year, decay_years: decay }, shape: g("shape"),
+      magnitude: { low: Number(g("low")), mode: Number(g("mode")), high: Number(g("high")), unit },
+      already_in_baseline: "none", baseline_overlap_note: g("overlap") || "Added by the user; judged not to be in the historical trend.",
+      origin: "user", status: "approved", confidence: "low",
+    };
+    if (prob !== "") card.probability = Number(prob) / 100;
+    if (status) card.event_status = status;
+    if (!(card.magnitude.low <= card.magnitude.mode && card.magnitude.mode <= card.magnitude.high)) {
+      alert("Size must satisfy low <= most likely <= high."); return;
+    }
+    state.customDrivers.push(card);
+    save();
+    renderResults();
+  } },
+    h("h3", {}, "Add an event or risk"),
+    h("div", { class: "form-grid" },
+      h("label", {}, "Title", h("input", { name: "title", required: true, placeholder: "e.g. Stadium concert series" })),
+      h("label", {}, "Affects", h("select", { name: "affects" },
+        h("option", { value: "demand" }, "Demand (percent of the year's demand)"), h("option", { value: "adr" }, "ADR (percent of the year's ADR)"),
+        h("option", { value: "shock_probability" }, "Chance of a shock (multiplier)"), h("option", { value: "supply" }, "Supply (rooms)"))),
+      h("label", {}, "Year", h("input", { name: "year", type: "number", required: true, value: String(f.summary[1]?.year ?? ""), min: String(f.summary[0].year), max: String(f.summary[f.summary.length - 1].year) })),
+      h("label", {}, "Shape", h("select", { name: "shape" },
+        h("option", { value: "one_off" }, "One-off (that year only)"), h("option", { value: "temporary" }, "Temporary (fades over the decay years)"), h("option", { value: "step" }, "Permanent from that year"))),
+      h("label", {}, "Decay years", h("input", { name: "decay", type: "number", min: "0", max: "5", value: "0" })),
+      h("label", {}, "Event status", h("select", { name: "status" }, h("option", { value: "" }, "not an event / not set"),
+        Object.keys(ladder).map((k) => h("option", { value: k }, `${k.replace(/_/g, " ")} (${Math.round(ladder[k].default * 100)}%)`)))),
+      h("label", {}, "Chance (%), blank to use the status", h("input", { name: "prob", type: "number", min: "0", max: "100", step: "5" })),
+      h("label", {}, "Size: low", h("input", { name: "low", type: "number", step: "any", required: true, value: "0.5" })),
+      h("label", {}, "Size: most likely", h("input", { name: "mode", type: "number", step: "any", required: true, value: "1" })),
+      h("label", {}, "Size: high", h("input", { name: "high", type: "number", step: "any", required: true, value: "2" })),
+      h("label", { class: "wide" }, "Why this is not already in the historical trend", h("input", { name: "overlap", placeholder: "e.g. a new event the city has not hosted before" })),
+    ),
+    h("p", { class: "note" }, "Sizes are percent for demand and ADR (1 means +1% of that year's level; use negatives for a fall), rooms for supply, and a multiplier for shock chance (2 doubles it). One-off events lift their year and the next year grows from a normal base."),
+    h("button", { class: "btn", type: "submit" }, "Add driver"),
+  );
+  p.append(form);
+}
+
 function whyView(p: HTMLElement, f: Forecast) {
   const e = f.explanation!;
   const bp = (v: number | null | undefined) => (v === null || v === undefined || !Number.isFinite(v) ? "" : `${v >= 0 ? "+" : ""}${(v * 100).toFixed(1)}`);
@@ -545,14 +779,17 @@ function whyView(p: HTMLElement, f: Forecast) {
   const years = e.bridge.map((b) => String(b.year));
   const rows: [string, (b: any) => number | null, boolean?][] = [
     ["Demand: trend", (b) => b.demand.trend], ["Demand: momentum", (b) => b.demand.momentum],
-    ["Demand: expected shocks", (b) => b.demand.shocks], ["Demand: new and reopened hotels", (b) => b.demand.new_hotels],
+    ["Demand: expected shocks", (b) => b.demand.shocks], ["Demand: drivers", (b) => b.demand.drivers ?? 0],
+    ["Demand: new and reopened hotels", (b) => b.demand.new_hotels],
     ["Demand: occupancy ceiling", (b) => b.demand.ceiling], ["Demand total", (b) => b.demand.total, true],
     ["Supply: existing stock", (b) => b.supply.existing_level], ["Supply: removals", (b) => b.supply.removals],
     ["Supply: new builds", (b) => b.supply.new_builds], ["Supply: reopenings", (b) => b.supply.reopenings],
-    ["Supply: unannounced", (b) => b.supply.unannounced], ["Supply total", (b) => b.supply.total, true],
+    ["Supply: unannounced", (b) => b.supply.unannounced], ["Supply: drivers", (b) => b.supply.drivers ?? 0],
+    ["Supply total", (b) => b.supply.total, true],
     ["Occupancy (demand minus supply)", (b) => b.occupancy_total, true],
     ["ADR: inflation", (b) => b.adr.inflation], ["ADR: real drift", (b) => b.adr.real_drift],
     ["ADR: pricing power", (b) => b.adr.pricing_power], ["ADR: carry-over", (b) => b.adr.carry_over],
+    ["ADR: drivers", (b) => b.adr.drivers ?? 0],
     ["ADR total", (b) => b.adr.total, true],
     ["Occupancy, years without a shock", (b) => b.calm?.occ_total ?? null, true], ["ADR, years without a shock", (b) => b.calm?.adr_total ?? null, true],
   ];

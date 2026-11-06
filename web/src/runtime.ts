@@ -21,7 +21,9 @@ const PACKAGES = ["numpy", "pandas", "pydantic", "pyyaml"];
 
 export type Msg =
   | { type: "init"; base: string; wheels: { name: string; buf: ArrayBuffer }[] }
-  | { type: "run"; id: number; files: { slot: string; filename: string; buf: ArrayBuffer }[]; market: unknown; today: string }
+  | { type: "run"; id: number; files: { slot: string; filename: string; buf: ArrayBuffer }[]; market: unknown; today: string;
+      settings?: unknown; drivers?: unknown }
+  | { type: "rerun"; id: number; settings: unknown; drivers: unknown; useFileDrivers: boolean }
   | { type: "peek"; id: number; filename: string; buf: ArrayBuffer };
 
 
@@ -66,9 +68,20 @@ export function createRuntime(post: (m: unknown) => void): (m: Msg) => Promise<v
       if (m.type === "run") {
         const files = py.toPy(m.files.map((f) => ({ slot: f.slot, filename: f.filename, data: new Uint8Array(f.buf) })));
         const market = py.toPy(m.market);
-        const json = api.run_ingest(files, market, m.today) as string;
+        const settings = py.toPy(m.settings ?? {});
+        const drivers = py.toPy(m.drivers ?? []);
+        const json = api.run_ingest(files, market, m.today, true, null, settings, drivers) as string;
         files.destroy();
         market.destroy();
+        settings.destroy();
+        drivers.destroy();
+        post({ type: "result", id: m.id, json });
+      } else if (m.type === "rerun") {
+        const settings = py.toPy(m.settings ?? {});
+        const drivers = py.toPy(m.drivers ?? []);
+        const json = api.rerun(settings, drivers, null, m.useFileDrivers) as string;
+        settings.destroy();
+        drivers.destroy();
         post({ type: "result", id: m.id, json });
       } else if (m.type === "peek") {
         const json = api.peek_json(new Uint8Array(m.buf), m.filename) as string;

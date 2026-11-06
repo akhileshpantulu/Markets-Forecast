@@ -66,6 +66,25 @@ async function exercise(page, url, label) {
     await page.getByRole("tab", { name: tab }).click();
     if (SHOTS) await page.screenshot({ path: join(SHOTS, `${label}-${tab.toLowerCase()}.png`), fullPage: true });
   }
+  // Assumptions: change a pipeline probability, add an event, rerun.
+  await page.getByRole("tab", { name: /Assumptions/ }).click();
+  await page.fill("#set-pipeline-under_construction-p", "50");
+  await page.dispatchEvent("#set-pipeline-under_construction-p", "change");
+  await page.fill("input[name=title]", "Test event");
+  await page.fill("input[name=prob]", "100");
+  await page.click("form.driver-form button[type=submit]");
+  const t1 = Date.now();
+  await page.getByRole("button", { name: "Rerun forecast" }).click();
+  await page.getByRole("button", { name: "Rerun forecast" }).waitFor({ timeout: 120_000 });
+  await page.waitForFunction(() => !document.querySelector(".sticky-actions .btn.primary")?.hasAttribute("disabled"), null, { timeout: 120_000 });
+  console.log(`[${label}] rerun with settings took ${Date.now() - t1} ms`);
+  if (SHOTS) await page.screenshot({ path: join(SHOTS, `${label}-assumptions.png`), fullPage: true });
+  await page.getByRole("tab", { name: "Forecast" }).click();
+  const banner = await page.getByText("This run uses your settings").count();
+  const drv = await page.getByText("Drivers in this forecast").count();
+  if (!banner) fail(`${label}: no user-adjustment banner after rerun`);
+  if (!drv) fail(`${label}: no driver table after adding a driver`);
+  if (SHOTS) await page.screenshot({ path: join(SHOTS, `${label}-forecast-adjusted.png`), fullPage: true });
   if (errors.length) fail(`${label}: page errors: ${errors.join("; ")}`);
 }
 

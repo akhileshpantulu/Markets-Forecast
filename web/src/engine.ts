@@ -6,7 +6,7 @@ import etxmlUrl from "./wheels/et_xmlfile-2.0.0-py3-none-any.whl?url";
 export const PYODIDE_VERSION = "314.0.7";
 const CDN_BASE = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`;
 
-export interface Slot { id: string; label: string; hint: string; required: boolean; enabled: boolean }
+export interface Slot { id: string; label: string; hint: string; required: boolean; enabled: boolean; accept?: string }
 export interface MarketInfo { slug: string; name: string; currency: string; costar_market: string | null; costar_submarket: string | null }
 export interface AppInfo { engine_version: string; slots: Slot[]; markets: MarketInfo[] }
 export type MarketChoice = { slug: string } | { adhoc: { name: string; currency: string; costar_market?: string; costar_submarket?: string } };
@@ -81,11 +81,16 @@ export class Engine {
     });
   }
 
-  async run(files: { slot: string; file: File }[], market: MarketChoice): Promise<unknown> {
+  async run(files: { slot: string; file: File }[], market: MarketChoice, settings: Record<string, unknown> = {}, drivers: unknown[] = []): Promise<unknown> {
     const payload = await Promise.all(files.map(async (f) => ({ slot: f.slot, filename: f.file.name, buf: await f.file.arrayBuffer() })));
     const today = new Date().toISOString().slice(0, 10);
-    const json = await this.call({ type: "run", files: payload, market, today }, payload.map((p) => p.buf));
+    const json = await this.call({ type: "run", files: payload, market, today, settings, drivers }, payload.map((p) => p.buf));
     return JSON.parse(json);
+  }
+
+  /** Rerun only the forecast on the data already loaded, with new settings and extra drivers. */
+  async rerun(settings: Record<string, unknown>, drivers: unknown[], useFileDrivers = true): Promise<unknown> {
+    return JSON.parse(await this.call({ type: "rerun", settings, drivers, useFileDrivers }, []));
   }
 
   async peek(file: File): Promise<{ market?: string[]; submarket?: string[]; country?: string[] }> {

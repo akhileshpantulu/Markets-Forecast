@@ -22,7 +22,8 @@ from engine.ingest.core import IngestResult, InputFile, ingest_files
 from engine.ingest.mapping import load_mappings
 from engine.ingest.reader import read_table
 from engine.ingest.report import render_validation
-from engine.forecast import load_inputs, run_forecast
+from engine.forecast import load_driver_priors, load_inputs, run_forecast
+from engine.settings import settings_schema
 from engine.outputs.markdown import render_backtest, render_baseline, render_history
 
 # Upload slots on the page. Slots marked enabled=False are shown but not yet accepted.
@@ -31,6 +32,8 @@ SLOTS = [
      "required": True, "enabled": True},
     {"id": "pipeline", "label": "Pipeline", "hint": "CoStar property export of pipeline hotels",
      "required": True, "enabled": True},
+    {"id": "drivers", "label": "Drivers", "hint": "drivers.yaml from a forecast run, or your own cards (YAML or JSON)",
+     "required": False, "enabled": True, "accept": ".yaml,.yml,.json"},
     {"id": "airport", "label": "Airline and airport data", "hint": "Format to be added once an example is provided",
      "required": False, "enabled": False},
     {"id": "reference", "label": "Country performance", "hint": "Format to be confirmed once an example is provided",
@@ -151,28 +154,82 @@ def result_to_dict(res: IngestResult, cfg: MarketConfig, today: date) -> dict:
     return out
 
 
-def run_ingest(files: list[dict], market: dict, today: str | None = None, forecast: bool = True,
-               paths: int | None = None) -> str:
-    """files: [{"slot": "performance"|"pipeline"|..., "filename": str, "data": bytes}]. Returns JSON text.
+# Last ingested data, kept in the browser's Python session so changing settings reruns only the forecast.
+_STATE: dict = {}
+DATA_SLOTS = {"performance", "pipeline", "reference", "optional"}
 
-    When validation passes and forecast is True, the baseline forecast (Phases B and C) runs too.
+
+def parse_drivers_file(data, filename: str) -> list[dict]:
+    raw = _as_bytes(data).decode("utf-8")
+    doc = json.loads(raw) if filename.lower().endswith(".json") else yaml.safe_load(raw)
+    if isinstance(doc, dict):
+        doc = doc.get("drivers", [])
+    if not isinstance(doc, list):
+        raise ValueError("A drivers file must be a list of driver cards, or a mapping with a 'drivers' list.")
+    return doc
+
+
+def _forecast(paths: int | None) -> dict:
+    st = _STATE
+    cfg = st["cfg"]
+    priors, ppri, macro = load_inputs(cfg)
+    drivers = list(st.get("drivers_file") or []) + list(st.get("drivers_extra") or [])
+    try:
+        fc = run_forecast(st["res"], cfg, priors, ppri, macro, n_paths=paths, drivers=drivers,
+                          settings=st.get("settings"), cache=st.setdefault("cache", {}))
+        fc["reports"] = {"history_md": render_history(fc, cfg), "backtest_md": render_backtest(fc),
+                         "baseline_md": render_baseline(fc, cfg)}
+        return {"forecast": fc}
+    except Exception as exc:  # report, do not hide, a forecast failure
+        return {"forecast_error": f"{type(exc).__name__}: {exc}"}
+
+
+def _schema(cfg: MarketConfig, years: list[int] | None) -> list[dict]:
+    _, ppri, macro = load_inputs(cfg)
+    return settings_schema(ppri, macro, load_driver_priors(), years)
+
+
+def run_ingest(files: list[dict], market: dict, today: str | None = None, forecast: bool = True,
+               paths: int | None = None, settings: dict | None = None, drivers: list[dict] | None = None) -> str:
+    """files: [{"slot": "performance"|"pipeline"|"drivers"|..., "filename": str, "data": bytes}]. Returns JSON text.
+
+    When validation passes and forecast is True, the forecast runs too, with any drivers and settings.
     """
     day = date.fromisoformat(today) if today else date.today()
     enabled = {s["id"] for s in SLOTS if s["enabled"]}
-    inputs = [InputFile(f["slot"], f["filename"], _as_bytes(f["data"])) for f in files if f["slot"] in enabled]
+    inputs = [InputFile(f["slot"], f["filename"], _as_bytes(f["data"])) for f in files
+              if f["slot"] in enabled and f["slot"] in DATA_SLOTS]
     cfg = resolve_config(market)
     res = ingest_files(inputs, cfg, load_mappings(), today=day)
     out = result_to_dict(res, cfg, day)
+    drivers_file, drivers_error = [], None
+    for f in files:
+        if f["slot"] == "drivers":
+            try:
+                drivers_file = parse_drivers_file(f["data"], f["filename"])
+            except Exception as exc:
+                drivers_error = f"{f['filename']}: {exc}"
+    _STATE.clear()
+    _STATE.update({"res": res, "cfg": cfg, "drivers_file": drivers_file, "drivers_extra": drivers or [],
+                   "settings": settings or {}, "cache": {}})
+    if drivers_error:
+        out["drivers_error"] = drivers_error
     if forecast and res.passed:
-        try:
-            priors, ppri, macro = load_inputs(cfg)
-            fc = run_forecast(res, cfg, priors, ppri, macro, n_paths=paths)
-            fc["reports"] = {"history_md": render_history(fc, cfg), "backtest_md": render_backtest(fc),
-                             "baseline_md": render_baseline(fc, cfg)}
-            out["forecast"] = fc
-        except Exception as exc:  # report, do not hide, a forecast failure
-            out["forecast_error"] = f"{type(exc).__name__}: {exc}"
+        out.update(_forecast(paths))
+        y0 = int(res.monthly["period_start"].max().year)
+        out["settings_schema"] = _schema(cfg, [y0 + i for i in range(1, cfg.horizon_years + 1)])
     return json.dumps(out, allow_nan=False)
+
+
+def rerun(settings: dict | None, drivers: list[dict] | None, paths: int | None = None, use_file_drivers: bool = True) -> str:
+    """Rerun the forecast on the last ingested data with new settings and extra drivers."""
+    if "res" not in _STATE:
+        return json.dumps({"forecast_error": "No data loaded yet. Run with files first."})
+    _STATE["settings"] = settings or {}
+    _STATE["drivers_extra"] = drivers or []
+    if not use_file_drivers:
+        _STATE["drivers_file"] = []
+    return json.dumps(_forecast(paths), allow_nan=False)
 
 
 def app_info() -> str:

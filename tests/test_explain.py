@@ -142,3 +142,29 @@ def test_trend_basis_setting_and_sensitivity(grow):
     assert any("Trend basis" in a for a in out["adjustments"])
     variants = {v["variant"] for v in out["backtest"]["variants"]}
     assert any(v.endswith("/long_run_cagr") for v in variants)
+
+
+
+def test_growing_market_is_not_seasonal():
+    """Rooms that rise through every year (new openings) must not be read as seasonal closures."""
+    from engine.supply.pipeline import seasonal_availability
+    months = pd.date_range("2018-01-01", "2026-09-01", freq="MS")
+    rooms = 5000 * 1.06 ** ((np.arange(len(months))) / 12)          # +6% a year, rising every month
+    idx = seasonal_availability(pd.DataFrame({"period_start": months, "available_rooms": rooms}), {2020, 2021, 2022})
+    assert all(v == 1.0 for v in idx.values())
+    stepped = rooms.copy()
+    stepped[(months.month >= 11) | (months.month <= 3)] *= 0.6                  # real winter closures still detected
+    idx2 = seasonal_availability(pd.DataFrame({"period_start": months, "available_rooms": stepped}), {2020, 2021, 2022})
+    assert idx2[1] < 0.85 and idx2[7] > 1.1
+
+
+
+def test_anchor_window_rules():
+    from engine.history.anchor import anchor_window
+    yrs = list(range(2006, 2026))
+    cov = {2020, 2021, 2022}
+    assert anchor_window(yrs, 2025, cov, None, None) == (2006, 2025)
+    assert anchor_window(yrs, 2025, cov, 2019, 6) == (2019, 2025)
+    assert anchor_window(yrs, 2021, cov, 2019, 6) == (2013, 2019)        # rolling window, COVID end moved back
+    assert anchor_window(yrs, 2025, cov, 2021, 4) == (2019, 2025)          # start inside COVID, window widened back
+    assert anchor_window(yrs, 2008, cov, None, None) == (2006, 2008)

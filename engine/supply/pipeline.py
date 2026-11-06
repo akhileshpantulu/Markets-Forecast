@@ -53,21 +53,23 @@ SEASONAL_MIN_AMPLITUDE = 0.03
 
 
 def seasonal_availability(monthly: pd.DataFrame, covid_years: set[int], years: int = 3) -> dict[int, float]:
-    """Median ratio of each calendar month's available rooms to its year's average, over the last
-    complete non-COVID years. Captures hotels that close seasonally. Returns all 1.0 when the
-    pattern is weaker than SEASONAL_MIN_AMPLITUDE (a flat, year-round market)."""
-    m = monthly.copy()
-    m["year"] = m["period_start"].dt.year
-    m["month"] = m["period_start"].dt.month
-    counts = m.groupby("year")["month"].count()
-    full = [y for y in counts.index if counts[y] == 12 and y not in covid_years][-years:]
+    """Median ratio of each calendar month's available rooms to a centred 12-month average (2x12 moving
+    average), over the last `years` years of non-COVID months. Dividing by the centred average removes
+    growth within the year (a market adding hotels every month is not seasonal), so only recurring
+    closures remain. Returns all 1.0 when the pattern is weaker than SEASONAL_MIN_AMPLITUDE."""
     flat = {k: 1.0 for k in range(1, 13)}
-    if not full:
+    m = monthly.sort_values("period_start").set_index("period_start")["available_rooms"].astype(float)
+    if len(m) < 25:
         return flat
-    x = m[m["year"].isin(full)].copy()
-    x["ratio"] = x["available_rooms"] / x.groupby("year")["available_rooms"].transform("mean")
-    idx = x.groupby("month")["ratio"].median()
-    if idx.max() - idx.min() < SEASONAL_MIN_AMPLITUDE:
+    ma = m.rolling(12, center=True).mean().rolling(2).mean().shift(-1)   # centred 2x12 moving average
+    ratio = (m / ma).dropna()
+    ratio = ratio[[d.year not in covid_years for d in ratio.index]]
+    ratio = ratio[ratio.index >= ratio.index.max() - pd.DateOffset(months=12 * years - 1)]
+    if len(ratio) < 12:
+        return flat
+    idx = ratio.groupby(ratio.index.month).median()
+    idx = idx / idx.mean()
+    if len(idx) < 12 or idx.max() - idx.min() < SEASONAL_MIN_AMPLITUDE:
         return flat
     return {int(k): float(v) for k, v in idx.items()}
 

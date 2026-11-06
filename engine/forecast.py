@@ -21,7 +21,7 @@ from engine.demand.baseline import fit_demand
 from engine.drivers.apply import build_effects
 from engine.drivers.validate import check_cards, parse_cards
 from engine.explain import build_explanation
-from engine.history.anchor import apply_anchor, compute_anchor
+from engine.history.anchor import anchor_window, apply_anchor, compute_anchor
 from engine.settings import apply_settings
 import dataclasses
 from engine.history.analysis import analyse_history
@@ -145,7 +145,11 @@ def run_forecast(res: IngestResult, cfg: MarketConfig, priors: dict, ppri: dict,
     am = fit_adr(hist.annual, dm, res.growth_sample, priors, cpi)
     fitted = {"demand_mu": dm.mu, "adr_alpha": am.alpha, "adr_beta": am.beta, "ceiling": hist.ceiling["annual"]}
     shock_drag0 = dm.expected_shock_drag()
-    anchor = compute_anchor(hist.annual, a_start, None, cpi)
+    win = anchor_window(list(hist.annual["year"]), int(hist.annual["year"].max()), set(covid), a_start,
+                        None if a_start is None else int(hist.annual["year"].max()) - a_start)
+    anchor = compute_anchor(hist.annual, win[0], win[1], cpi) if win else None
+    if a_start is not None and anchor is not None and anchor.start != a_start:
+        applied.adjustments.append(f"Long-run CAGR start moved from {a_start} to {anchor.start} (COVID years or too short a window).")
     am_alt = dataclasses.replace(am)
     anchor_info = None
     if anchor is not None:

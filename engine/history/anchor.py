@@ -78,3 +78,31 @@ def apply_anchor(dm, am, anchor: Anchor, cpi_mode: bool) -> dict:
         am.alpha = anchor.log("adr")
     am.occ_trend = anchor.log("occupancy")
     return {**fitted, "shock_drag": drag}
+
+
+MIN_WINDOW = 5
+
+
+def anchor_window(available_years: list[int], end: int, covid_years: set[int], start_year: int | None,
+                  live_length: int | None) -> tuple[int, int] | None:
+    """Choose (start, end) for an anchor ending at or before `end`.
+
+    The end moves back to the latest non-COVID year. With a user start year, the window keeps the live
+    window's length (a rolling window), so a backtest origin never gets a one-year window. The start
+    moves forward out of COVID years. Windows are at least MIN_WINDOW years when the data allow.
+    """
+    yrs = sorted(y for y in available_years if y <= end and y not in covid_years)
+    if len(yrs) < 2:
+        return None
+    e = yrs[-1]
+    first = yrs[0]
+    if start_year is None or live_length is None:
+        s = first
+    else:
+        s = max(first, e - live_length)
+    while s in covid_years and s < e:
+        s += 1
+    s = min([y for y in yrs if y >= s] or [first])
+    if e - s < MIN_WINDOW:
+        s = max([y for y in yrs if y <= e - MIN_WINDOW] or [first])   # widen backward to a non-COVID year
+    return (s, e) if e > s else None

@@ -22,7 +22,7 @@ from engine.adr.model import fit_adr
 from engine.config import MarketConfig
 from engine.demand.baseline import fit_demand
 from engine.history.analysis import occupancy_ceiling
-from engine.history.anchor import apply_anchor, compute_anchor
+from engine.history.anchor import anchor_window, apply_anchor, compute_anchor
 from engine.simulate.baseline import _x_range, project_years
 
 MEASURES = ("demand_growth", "occ_growth", "adr_growth", "revpar_growth")
@@ -100,6 +100,8 @@ def run_backtest(monthly_spliced: pd.DataFrame, sample: pd.DataFrame, annual_his
     origins = [t for t in lv.index if t < last and (t - 1) in lv.index
                and sum(1 for y in usable_years if y <= t) >= pb["first_origin_min_years"]]
     variants = [Variant(False, "bootstrap"), Variant(False, "student_t"), Variant(True, "bootstrap"), Variant(True, "student_t")]
+    live_years = [int(y) for y in annual_hist["year"] if int(y) not in covid]
+    live_len = (max(live_years) - max(anchor_start, min(live_years))) if (anchor_start is not None and live_years) else None
 
     def run(vi: int, var: Variant, k, label: float | None = None, basis: str | None = None,
             key: str | None = None) -> list[dict]:
@@ -115,7 +117,8 @@ def run_backtest(monthly_spliced: pd.DataFrame, sample: pd.DataFrame, annual_his
                 cpi_T = {y: v for y, v in cpi.items() if y <= T} if cpi else None
                 am = fit_adr(a_T, dm, s_T, priors, cpi_T)
                 if (basis or anchor_basis) == "long_run_cagr":
-                    anc = compute_anchor(a_T, anchor_start, T, cpi_T)
+                    win = anchor_window(list(a_T["year"]), T, covid, anchor_start, live_len)
+                    anc = compute_anchor(a_T, win[0], win[1], cpi_T) if win else None
                     if anc is not None:
                         apply_anchor(dm, am, anc, am.mode == "cpi")
             except Exception:  # too little data at this origin for this variant

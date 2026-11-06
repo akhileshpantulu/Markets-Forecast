@@ -10,6 +10,7 @@ Produce the drivers document for market `$ARGUMENTS`. Follow CLAUDE.md throughou
 ## 0. Market and inputs
 
 - If `config/markets/$ARGUMENTS.yaml` does not exist, create it (name, CoStar market and submarket, currency, country ISO2, horizon 5). Ask the user only if the currency or country is unclear. Market configs hold no data and may be committed.
+- Refresh near-term inflation: search for the latest official forecasts (UK: OBR calendar-year CPI and the Bank of England Monetary Policy Report; France: Banque de France projections, HICP) and the latest actual print. Update `config/macro/near_term/<ISO2>.yaml` with value, measure, publisher, title, URL, published and accessed dates, and how each figure was verified. These are public statistics and may be committed.
 - Nothing has to be uploaded. Two inputs are optional and make the cards better:
   - **CoStar performance and pipeline exports** (the same files the user drops on the page), in `inbox/$ARGUMENTS/` or a path the user gives. If present, run `python -m engine $ARGUMENTS --inbox <path>` once. Its `results.json` gives the researchers the market's long-run trend, shock history and pipeline projects, and lets the critic check for double counting.
   - **results.json downloaded from the page** (Reports tab, "Download results.json"). It serves the same purpose when the raw exports are not available here.

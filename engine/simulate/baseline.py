@@ -136,7 +136,9 @@ def project_years(dm: DemandModel, am: AdrModel, rng: np.random.Generator, n_pat
     org = (d0 - induced0) * np.exp(-Ld[:, 0])           # organic demand excludes driver effects
     dlog_occ0 = np.log(occ0 / occ_prev)
     pi0 = np.log1p(cpi0) if cpi is not None else 0.0
-    r = np.log(adr0 / adr_prev) - pi0 - am.alpha - am.beta * np.clip(dlog_occ0 - am.occ_trend, *x_range) - La[:, 0]
+    # The origin year is treated as a normal year for the pricing rule.
+    r = (np.log(adr0 / adr_prev) - pi0 - am.alpha - am.beta_change * np.clip(dlog_occ0 - am.occ_trend, *x_range)
+         - am.level_effect(occ_prev) - La[:, 0])
     occ_out = np.empty((n_paths, n_years)); adr_out = np.empty((n_paths, n_years)); dem_out = np.empty((n_paths, n_years))
     occ_p, adr_p, gn = occ0, adr0, g_lag
     # Ratios at the origin for the trace: total/organic demand, and capped/uncapped demand.
@@ -156,10 +158,15 @@ def project_years(dm: DemandModel, am: AdrModel, rng: np.random.Generator, n_pat
         dem = occ * supply[:, t]
         carry = am.rho * r
         r = carry + sig_u * (c * z[:, t] + math.sqrt(1 - c * c) * z2[:, t])
-        x = np.clip(np.log(occ / occ_p) - am.occ_trend, *x_range)
+        # Pricing: a downturn or recovery passes through to rate (beta); occupancy change in normal years
+        # moves rate the other way (beta_change); a high occupancy level last year dampens rate growth.
+        x_all = np.log(occ / occ_p) - am.occ_trend
+        x_s = np.clip(dev[:, t], *x_range)
+        x_c = np.clip(x_all - dev[:, t], *x_range)
+        p_down, p_chg, p_lvl = am.beta * x_s, am.beta_change * x_c, am.level_effect(occ_p)
         pi = np.log1p(cpi[:, t]) if cpi is not None else 0.0
         d_la = La[:, t + 1] - La[:, t]
-        adr = adr_p * np.exp(pi + am.alpha + am.beta * x + r + d_la)
+        adr = adr_p * np.exp(pi + am.alpha + p_down + p_chg + p_lvl + r + d_la)
         if trace is not None:
             ind_ratio = np.log(unc / with_drivers)
             cap_ratio = np.log(dem / unc)
@@ -171,7 +178,9 @@ def project_years(dm: DemandModel, am: AdrModel, rng: np.random.Generator, n_pat
                 "supply_total": np.log(supply[:, t] / s_p).mean(),
                 "supply_drivers": (lv.get("supply", np.zeros((n_paths, n_years + 1)))[:, t + 1]
                                    - lv.get("supply", np.zeros((n_paths, n_years + 1)))[:, t]).mean(),
-                "adr_inflation": float(np.mean(pi)), "adr_real_drift": am.alpha, "adr_pricing_power": (am.beta * x).mean(),
+                "adr_inflation": float(np.mean(pi)), "adr_real_drift": am.alpha,
+                "adr_downturn": p_down.mean(), "adr_occ_change": p_chg.mean(), "adr_occ_level": float(np.mean(p_lvl)),
+                "adr_pricing_power": (p_down + p_chg + p_lvl).mean(),
                 "adr_carry_over": carry.mean(), "adr_noise": (r - carry).mean(), "adr_drivers": d_la.mean(),
                 "adr_total": np.log(adr / adr_p).mean(),
                 "share_at_ceiling": float((occ >= ceiling - 1e-12).mean()),
@@ -188,7 +197,9 @@ def project_years(dm: DemandModel, am: AdrModel, rng: np.random.Generator, n_pat
                             "calm_adr_drivers": d_la[calm].mean(),
                             "calm_demand_new_hotels": (ind_ratio - ind_ratio_p)[calm].mean(),
                             "calm_demand_ceiling": (cap_ratio - cap_ratio_p)[calm].mean(),
-                            "calm_adr_pricing_power": (am.beta * x)[calm].mean()})
+                            "calm_adr_occ_change": p_chg[calm].mean(),
+                            "calm_adr_occ_level": np.broadcast_to(p_lvl, calm.shape)[calm].mean(),
+                            "calm_adr_pricing_power": (p_down + p_chg + p_lvl)[calm].mean()})
             trace.setdefault("years", []).append({k: float(v) for k, v in rec.items()})
             ind_ratio_p, cap_ratio_p = ind_ratio, cap_ratio
         dem_p, s_p = dem, supply[:, t]
@@ -312,6 +323,12 @@ def summarise(paths: Paths) -> list[dict]:
         for name, arr in {**g, **levels}.items():
             v = arr[:, j]
             row[name] = {"mean": float(v.mean()), **{f"p{q}": float(np.percentile(v, q)) for q in STAT_PCTS}}
+        # RevPAR = occupancy x ADR. Medians of separate distributions do not multiply, so the reported RevPAR
+        # P50 is built from the occupancy and ADR P50s; the median of the simulated RevPAR itself is kept as p50_paths.
+        for rv, o, a in (("revpar_growth", "occ_growth", "adr_growth"), ("revpar", "occupancy", "adr")):
+            row[rv]["p50_paths"] = row[rv]["p50"]
+            row[rv]["p50"] = ((1 + row[o]["p50"]) * (1 + row[a]["p50"]) - 1) if rv == "revpar_growth" \
+                else row[o]["p50"] * row[a]["p50"]
         row["p_revpar_negative"] = float((g["revpar_growth"][:, j] < 0).mean())
         row["p_shock_onset"] = float((paths.shock_onset[:, j] > 0).mean()) if paths.shock_onset is not None else None
         out.append(row)

@@ -77,7 +77,7 @@ def build_explanation(paths: Paths, trace: dict, sp: SupplyPaths, dm: DemandMode
                       summary: list[dict], positions: list[dict], ceiling: float, hist_supply_growth: float | None,
                       cpi_path: dict | None, anchor=None, basis: str = "fitted_trend",
                       supply_trend: float | None = None, shock_drag0: float | None = None,
-                      stub_ytd: dict | None = None, stub_info: dict | None = None) -> dict:
+                      stub_ytd: dict | None = None, stub_info: dict | None = None, cpi_sources: dict | None = None) -> dict:
     years = paths.years
     tr = trace["years"]
     sup = _supply_split(sp, trace, years)
@@ -93,7 +93,9 @@ def build_explanation(paths: Paths, trace: dict, sp: SupplyPaths, dm: DemandMode
                        "total": t["demand_total"]},
             "supply": {**s, "drivers": t.get("supply_drivers", 0.0), "total": t["supply_total"]},
             "occupancy_total": occ_total,
-            "adr": {"inflation": t["adr_inflation"], "real_drift": t["adr_real_drift"], "pricing_power": t["adr_pricing_power"],
+            "adr": {"inflation": t["adr_inflation"], "real_drift": t["adr_real_drift"],
+                    "downturn": t.get("adr_downturn", 0.0), "occ_change": t.get("adr_occ_change", 0.0),
+                    "occ_level": t.get("adr_occ_level", 0.0),
                     "carry_over": t["adr_carry_over"], "drivers": t.get("adr_drivers", 0.0), "noise": t["adr_noise"],
                     "total": t["adr_total"]},
             "share_at_ceiling": t["share_at_ceiling"],
@@ -163,7 +165,7 @@ def build_explanation(paths: Paths, trace: dict, sp: SupplyPaths, dm: DemandMode
                 "year": b["year"],
                 "baseline": float(np.log1p(anchor.revpar)),
                 "supply_vs_trend": -(s_["total"] - s_lr) + d["new_hotels"],
-                "pricing_response": a["pricing_power"],
+                "pricing_response": a["downturn"] + a["occ_change"] + a["occ_level"],
                 "inflation_vs_history": (a["inflation"] - cpi_lr) if cpi_path else 0.0,
                 "shocks_vs_average": d["shocks"] - drag0,
                 "momentum": d["momentum"] + a["carry_over"],
@@ -200,9 +202,11 @@ def build_explanation(paths: Paths, trace: dict, sp: SupplyPaths, dm: DemandMode
          + " of today's rooms). Only pipeline rooms above the trend bring extra demand.")
         if st is not None else "Supply: the known pipeline and reopenings plus existing stock less removals.",
         f"ADR: {'inflation (' + ', '.join(f'{y} {v * 100:.1f}%' for y, v in cpi_path.items()) + ') plus ' if cpi_path else ''}"
-        f"a {'real ' if cpi_path else ''}drift of {pct(am.alpha)} a year and pricing power of {am.beta:.2f} "
-        + ("on occupancy change beyond its long-run trend" if am.occ_trend else "on occupancy change")
-        + f" (ADR moves {am.beta:.2f}% for each 1%).",
+        f"a {'real ' if cpi_path else ''}drift of {pct(am.alpha)} a year, adjusted by the pricing rule. In normal years rate "
+        f"moves {am.beta_change:+.2f}% for each 1% occupancy change beyond its trend (inverse: more occupancy, less rate "
+        f"growth). Rate growth falls {abs(am.beta_level) * 100:.0f} basis points for each point that occupancy sat above "
+        f"its normal {am.occ_ref:.1%} the year before, and a further {abs(am.beta_high) * 100:.0f} for each point above "
+        f"{am.high_threshold:.0%}. Downturns pass through to rate at {am.beta:.2f}% per 1% fall in occupancy.",
     ]
     per_year = []
     for b, r in zip(bridge, summary[1:]):
@@ -218,14 +222,14 @@ def build_explanation(paths: Paths, trace: dict, sp: SupplyPaths, dm: DemandMode
                     f"In the {c['share']:.0%} of paths with no shock that year, demand grows {pp(c['demand_total'])} points "
                     f"({main_d}) against supply {pp(c['supply_total'])} points ({main_s}), so occupancy moves "
                     f"{pp(c['occ_total'])} points; ADR moves {pp(c['adr_total'])} points (inflation {pp(a['inflation'])}, "
-                    f"real drift {pp(a['real_drift'])}, pricing power {pp(c['adr_pricing_power'])}"
+                    f"real drift {pp(a['real_drift'])}, pricing rule {pp(c['adr_pricing_power'])}"
                     + (f", drivers {pp(c.get('adr_drivers', 0.0))}" if abs(c.get('adr_drivers', 0.0)) >= 0.0005 else "") + "). "
                     f"Shocks in the other paths pull mean demand growth to {pp(d['total'])} points.")
         else:
             text = (f"{b['year']}: occupancy {pct(r['occ_growth']['p50'])} and ADR {pct(r['adr_growth']['p50'])} at P50. "
                     f"Demand {pp(d['total'])} points against supply {pp(s_['total'])} points ({main_s}).")
         per_year.append({"year": b["year"], "text": text})
-    stories = year_stories(paths, summary, bridge, recon, flags, sp, anchor, cpi_path, stub_ytd, stub_info)
+    stories = year_stories(paths, summary, bridge, recon, flags, sp, anchor, cpi_path, stub_ytd, stub_info, cpi_sources)
     return {"bridge": bridge, "flags": flags, "drivers": drivers, "per_year": per_year, "cumulative_revpar": cum,
             "reconciliation": recon, "years": stories,
             "historical_supply_growth": hist_supply_growth, "unannounced_rate": sp.unannounced_rate,
@@ -279,7 +283,8 @@ def _openings(sp: SupplyPaths, year: int) -> list[str]:
 
 
 def year_stories(paths: Paths, summary: list[dict], bridge: list[dict], recon: list[dict], flags: list[dict],
-                 sp: SupplyPaths, anchor, cpi_path: dict | None, stub_ytd: dict | None, stub_info: dict | None) -> list[dict]:
+                 sp: SupplyPaths, anchor, cpi_path: dict | None, stub_ytd: dict | None, stub_info: dict | None,
+                 cpi_sources: dict | None = None) -> list[dict]:
     stories = []
     # Stub year
     r0 = summary[0]
@@ -326,15 +331,29 @@ def year_stories(paths: Paths, summary: list[dict], bridge: list[dict], recon: l
         # ADR
         aparts = []
         if cpi_path:
-            aparts.append(f"inflation {_pts(a['inflation'])}")
+            src = (cpi_sources or {}).get(str(y))
+            aparts.append(f"inflation {_pts(a['inflation'])}" + (f" ({src})" if src else ""))
         aparts.append(f"{'real ' if cpi_path else ''}long-run trend {_pts(a['real_drift'])}")
-        pp_ = c.get("adr_pricing_power", a["pricing_power"])
-        if abs(pp_) >= 0.001:
-            aparts.append(f"pricing response to occupancy {_pts(pp_)}")
+        chg = c.get("adr_occ_change", a.get("occ_change", 0.0))
+        lvl = c.get("adr_occ_level", a.get("occ_level", 0.0))  # calm paths: no downturn pass-through
+        if abs(chg) >= 0.001:
+            aparts.append(f"{'giving back' if chg < 0 else 'adding'} {abs(chg) * 100:.1f} points as occupancy "
+                          f"{'rises' if chg < 0 else 'falls'} (occupancy and rate trade off)")
+        if abs(lvl) >= 0.001:
+            occ_prev = summary[summary.index(r) - 1]["occupancy"]["p50"]
+            aparts.append(f"{_pts(lvl)} because occupancy ran at {occ_prev:.1%} last year, "
+                          f"{'above' if lvl < 0 else 'below'} the market's normal level")
         if abs(c.get("adr_drivers", a.get("drivers", 0))) >= 0.001:
             aparts.append(f"drivers {_pts(c.get('adr_drivers', a.get('drivers', 0)))}")
+        shown = ((a["inflation"] if cpi_path else 0.0) + a["real_drift"] + chg + lvl
+                 + c.get("adr_drivers", a.get("drivers", 0)))
+        rest = float(np.log1p(r["adr_growth"]["p50"])) - shown
+        if abs(rest) >= 0.001:
+            aparts.append(f"{_pts(rest)} from the rest (downturns in some paths, carry-over from last year and noise)")
         adr_line = f"ADR {_f(r['adr_growth']['p50'])}: {', '.join(aparts)}."
-        lines = [occ_line, adr_line]
+        lines_rev = (f"RevPAR {_f(r['revpar_growth']['p50'])} = occupancy {_f(r['occ_growth']['p50'])} combined with ADR "
+                     f"{_f(r['adr_growth']['p50'])}.")
+        lines = [occ_line, adr_line, lines_rev]
         # Against the long-run baseline (mean)
         if rc is not None and lr is not None:
             diff = rc["total"] - lr

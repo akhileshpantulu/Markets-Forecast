@@ -1,0 +1,49 @@
+# Near-term inflation for the United Kingdom (user decision 2026-11-06: take the current and
+# next years from official near-term forecasts, searched and dated at run time; IMF fills the
+# later years). These override config/macro/generated/GB.yaml for the years listed.
+#
+# The Bank of England publishes CPI projections as Q4 four-quarter rates, not calendar-year
+# averages, and its November 2026 table could not be retrieved. The calendar-year averages
+# below come from the OBR, the UK's official fiscal forecaster, published 28 Oct 2026.
+# The Bank's November 2026 report (5 Nov 2026) is higher in the near term: CPI around 4.5% in
+# 2027 Q1 and around 5% (4.9%) in 2027 Q2. Treat 2027 as an upside risk.
+#
+# Verification: the session network blocks obr.uk, gov.uk and bankofengland.co.uk, so every
+# figure is from search results, not the document itself. Re-check against the PDF when the
+# hosts are allowed. Run-time refresh: /forecast step 0 (see .claude/commands/forecast.md).
+country_iso: GB
+updated: '2026-11-06'
+measure: CPI, calendar-year average, annual % change
+values:
+  - year: 2026
+    rate: 0.031
+    publisher: Office for Budget Responsibility
+    title: Economic and fiscal outlook, October 2026
+    url: https://obr.uk/efo/economic-and-fiscal-outlook-october-2026/
+    published: '2026-10-28'
+    accessed: '2026-11-06'
+    verification: secondary only (Cardinal Wealth economic review, October 2026); OBR document not opened
+  - year: 2027
+    rate: 0.034
+    publisher: Office for Budget Responsibility
+    title: Economic and fiscal outlook, October 2026
+    url: https://assets.publishing.service.gov.uk/media/6ae4a7a9ec36e258a1998484/economic-and-fiscal-outlook-october-2026-web-accessible.pdf
+    published: '2026-10-28'
+    accessed: '2026-11-06'
+    verification: search snippet of the OBR document body; Reuters report gives the same 3.4% (two sources)
+  - year: 2028
+    rate: 0.021
+    publisher: Office for Budget Responsibility
+    title: Economic and fiscal outlook, October 2026
+    url: https://uk.finance.yahoo.com/news/uk-inflation-forecast-average-3-135731380.html
+    published: '2026-10-28'
+    accessed: '2026-11-06'
+    verification: secondary only (Reuters); OBR text says inflation falls back to 2 per cent in 2028
+latest_actual:
+  period: 2026-09
+  rate: 0.035
+  measure: CPI, 12-month rate
+  publisher: Office for National Statistics
+  url: https://www.ons.gov.uk/economy/inflationandpriceindices/bulletins/consumerpriceinflation/september2026
+  published: '2026-10-21'
+  accessed: '2026-11-06'

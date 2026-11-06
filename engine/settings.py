@@ -11,6 +11,8 @@ from __future__ import annotations
 import copy
 from dataclasses import dataclass, field
 
+from engine.config import CONFIG_DIR, load_yaml
+
 STAGES = [("under_construction", "Under construction"), ("under_renovation", "Renovation reopening (temporarily closed)"),
           ("final_planning", "Final planning"), ("planning", "Planning"), ("proposed", "Proposed"), ("deferred", "Deferred")]
 
@@ -19,9 +21,18 @@ def _tri_mode(spec: dict) -> float:
     return float(spec["mode"])
 
 
+def _adr_priors() -> dict:
+    try:
+        return load_yaml(CONFIG_DIR / "priors.yaml").get("adr", {})
+    except FileNotFoundError:
+        return {}
+
+
 def settings_schema(ppri: dict, macro: dict, driver_priors: dict, horizon_years: list[int] | None = None) -> list[dict]:
     """Groups of fields. kind: percent (shown x100), number, bool, multiplier, months, points.
     default None means the engine works it out from the data (shown as 'auto')."""
+    pa = _adr_priors()
+    hi = pa.get("high_occupancy", {"threshold": 0.90, "dampening": -0.5})
     g = []
     g.append({"id": "baseline", "title": "Baseline",
               "help": "The baseline is the market's long-run CAGR (RevPAR = occupancy x ADR; demand = supply + occupancy). "
@@ -65,11 +76,20 @@ def settings_schema(ppri: dict, macro: dict, driver_priors: dict, horizon_years:
                   {"key": "demand.shock_mult_moderate", "label": "Chance of a moderate shock (multiplier)", "kind": "multiplier", "min": 0, "max": 5, "step": 0.1, "default": 1.0},
                   {"key": "demand.shock_mult_severe", "label": "Chance of a severe, COVID-scale shock (multiplier)", "kind": "multiplier", "min": 0, "max": 5, "step": 0.1, "default": 1.0},
               ]})
-    g.append({"id": "adr", "title": "ADR",
-              "help": "ADR growth = inflation + real drift + pricing power x occupancy change.",
+    g.append({"id": "adr", "title": "ADR and the occupancy trade-off",
+              "help": "ADR growth = inflation + real drift + the pricing rule. Downturns pass through to rate. In normal years "
+                      "occupancy and rate move inversely, and a high occupancy level dampens rate growth, more steeply above the threshold.",
               "fields": [
                   {"key": "adr.drift_bias", "label": "Real ADR drift adjustment (points a year)", "kind": "points", "min": -0.05, "max": 0.05, "step": 0.001, "default": 0.0},
-                  {"key": "adr.pricing_power", "label": "Pricing power (ADR % per 1% occupancy; blank: fitted)", "kind": "number", "min": 0, "max": 3, "step": 0.05, "default": None},
+                  {"key": "adr.occ_change_response", "label": "Normal years: ADR % per 1% occupancy change (negative = inverse)", "kind": "number",
+                   "min": -1.5, "max": 1.0, "step": 0.05, "default": float(pa.get("occ_change_response", {}).get("value", 0.0))},
+                  {"key": "adr.level_dampening", "label": "Rate dampening per point of occupancy above the market's normal (blank: fitted)", "kind": "number",
+                   "min": -2.0, "max": 0.0, "step": 0.05, "default": None},
+                  {"key": "adr.high_threshold", "label": "Occupancy above which rate growth is dampened more", "kind": "percent",
+                   "min": 0.7, "max": 1.0, "step": 0.005, "default": float(hi["threshold"])},
+                  {"key": "adr.high_dampening", "label": "Extra dampening per point of occupancy above that threshold", "kind": "number",
+                   "min": -3.0, "max": 0.0, "step": 0.05, "default": float(hi["dampening"])},
+                  {"key": "adr.pricing_power", "label": "Downturns: ADR % per 1% occupancy fall or recovery (blank: fitted)", "kind": "number", "min": 0, "max": 3, "step": 0.05, "default": None},
               ]})
     if macro.get("cpi_projections", {}).get("values"):
         proj = {int(v["year"]): float(v["rate"]) for v in macro["cpi_projections"]["values"]}
@@ -176,6 +196,10 @@ def apply_settings(settings: dict | None, ppri: dict, macro: dict, driver_priors
         "trend_bias": float(s.get("demand.trend_bias") or 0.0),
         "drift_bias": float(s.get("adr.drift_bias") or 0.0),
         "pricing_power": s.get("adr.pricing_power"),
+        "occ_change_response": s.get("adr.occ_change_response"),
+        "level_dampening": s.get("adr.level_dampening"),
+        "high_threshold": s.get("adr.high_threshold"),
+        "high_dampening": s.get("adr.high_dampening"),
         "shock_mult_moderate": float(s.get("demand.shock_mult_moderate", 1.0) if s.get("demand.shock_mult_moderate") is not None else 1.0),
         "shock_mult_severe": float(s.get("demand.shock_mult_severe", 1.0) if s.get("demand.shock_mult_severe") is not None else 1.0),
         "spread_multiplier": float(s.get("uncertainty.spread_multiplier") or 1.0),

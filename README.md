@@ -44,8 +44,10 @@ After a run, open **Assumptions**. You can change:
 - **Pipeline:** the chance each stage opens within the forecast. The defaults are under construction 90%, final planning 60%, planning 50%, proposed 40%. You can also change the most likely delay.
 - **Supply:** the share of rooms closed each year, how much demand new and reopened hotels bring, and hotels not yet in the export.
 - **Demand:** a tilt to the trend, in points of growth a year, and multipliers on the chance of a moderate or severe shock.
-- **ADR:** a tilt to the real drift, and pricing power.
-- **Inflation path, band width, and the occupancy ceiling.**
+- **ADR:** a tilt to the real drift, and the pricing rule. In normal years occupancy and rate trade off: more occupancy means less rate growth. Rate growth is also dampened when occupancy ran above the market's normal level the year before, and more steeply above 90%. Downturns still pull rate down with occupancy. Each coefficient and the 90% threshold can be changed.
+- **Inflation path, band width, and the occupancy ceiling.** The current and next years' inflation come from official near-term forecasts (UK: OBR; France: Banque de France), shown with their sources and IMF values under Models on the Forecast tab. Later years use the IMF.
+
+RevPAR growth always equals occupancy growth combined with ADR growth: the RevPAR P50 is built from the occupancy and ADR P50s.
 - **Drivers:** switch each one on or off, or change its chance of happening. You can add your own event or risk:
   - Demand or ADR, as a percent of that year's level.
   - A shock chance multiplier, for unrest or other risks.

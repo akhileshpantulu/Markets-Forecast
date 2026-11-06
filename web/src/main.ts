@@ -38,6 +38,7 @@ interface Forecast {
   summary: SummaryRow[];
   positions: { year: number; occ_growth: { percentile: number; outside_p5_p95: boolean }; adr_growth: { percentile: number; outside_p5_p95: boolean };
     revpar_growth: { percentile: number; outside_p5_p95: boolean }; analog_year: number | null; occ_above_hist_max: boolean }[];
+  pricing_sensitivity?: any;
   covid_sensitivity: { default: string; by_year: { year: number; occ_growth: { difference: number }; adr_growth: { difference: number }; revpar_growth: { difference: number } }[] };
   stub: { actual: { period: string; occupancy: number; adr: number }[]; simulated: Record<string, number | string>[];
     calibration_years: number[]; trend_demand: number; trend_adr: number; err_demand_sd: number | null; err_adr_sd: number | null } | null;
@@ -56,7 +57,7 @@ interface Forecast {
   adjustments?: string[];
   settings_effective?: Record<string, any>;
   drivers?: { cards: any[]; applied: any[]; issues: { id: string; level: string; text: string }[]; attribution: any[]; ladder: Record<string, any> };
-  macro?: { adr_mode: string; cpi_path: Record<string, number | null> | null; cpi_source: { publisher: string; title: string; url: string; accessed: string } | null; cpi_projection_note: string | null };
+  macro?: { adr_mode: string; cpi_path: Record<string, number | null> | null; cpi_source: { publisher: string; title: string; url: string; accessed: string } | null; cpi_projection_note: string | null; cpi_near_term?: any };
   gaps: string[]; assumptions: string[]; notes: string[];
   reports: { history_md: string; backtest_md: string; baseline_md: string };
 }
@@ -456,7 +457,7 @@ function forecastView(p: HTMLElement, r: Result) {
   p.append(
     h("div", { class: "privacy", style: "margin-bottom:14px" },
       `${f.meta.status}. Built from this market's history and pipeline only. ADR is in ${f.meta.adr_mode} mode`,
-      f.meta.adr_mode === "nominal" ? " because the CPI history is not loaded" : " (inflation plus pricing power)", ". Model variant chosen by backtest: ", h("code", {}, f.meta.variant),
+      f.meta.adr_mode === "nominal" ? " because the CPI history is not loaded" : " (inflation, real drift and the occupancy pricing rule)", ". Model variant chosen by backtest: ", h("code", {}, f.meta.variant),
       `. ${num(f.meta.paths)} paths, seed ${f.meta.seed}, computed in ${f.meta.seconds} s.`),
     h("h2", {}, "Headline"),
     h("p", { class: "note" }, "P50 in bold, then the P10 to P90 range. Growth is year over year; the stub year compares the full year (actual plus simulated months) with the prior full year."),
@@ -533,13 +534,33 @@ function forecastView(p: HTMLElement, r: Result) {
     h("ul", {},
       h("li", {}, `Demand in normal years (${d.n_normal}): long-run growth ${signedPct(d.mu)} (data estimate ${signedPct(d.mu_hat)}, weight on data ${num(d.w_mu, 2)}), persistence ${num(d.phi, 2)}, noise ${pct(d.sigma)} a year, ${String(d.residual_type).replace("_", "-")} residuals.`),
       h("li", {}, `Shocks found in history: ${(d.shock_years as number[]).join(", ") || "none"}. Annual probability: moderate ${pct(d.p_moderate)}, severe ${pct(d.p_severe)}.`),
-      h("li", {}, `ADR (${a.mode} mode): drift ${signedPct(a.alpha)} a year, pricing power ${num(a.beta, 2)} (ADR moves ${num(a.beta, 2)}% per 1% occupancy change), noise ${pct(a.sigma_u)}, correlation with demand ${num(a.corr, 2)}.`),
+      h("li", {}, `ADR (${a.mode} mode): drift ${signedPct(a.alpha)} a year, noise ${pct(a.sigma_u)}, correlation with demand ${num(a.corr, 2)}.`),
+      h("li", {}, `Pricing rule: in normal years ADR moves ${num(a.beta_change, 2)}% per 1% occupancy change (assumption; history ${num(a.beta_change_hat, 2)}). `
+        + `Rate growth changes ${num(a.beta_level, 2)}% per point of occupancy above the normal ${pct(a.occ_ref)}, and a further ${num(a.beta_high, 2)}% per point above ${pct(a.high_threshold)}. `
+        + `Downturns pass through at ${num(a.beta, 2)}% per 1% occupancy fall.`),
       h("li", {}, `Occupancy ceiling ${pct(f.models.ceiling.annual)}. ${f.models.ceiling.basis}`),
       f.macro?.cpi_path && f.macro.cpi_source ? h("li", {}, "Inflation path used for ADR: ",
         Object.entries(f.macro.cpi_path).map(([y, v]) => `${y} ${pct(v)}`).join(", "), ". Source: ",
         h("a", { href: f.macro.cpi_source.url, target: "_blank", rel: "noopener" }, `${f.macro.cpi_source.publisher}, ${f.macro.cpi_source.title}`),
         `, accessed ${f.macro.cpi_source.accessed}. `, f.macro.cpi_projection_note ?? "") : null,
     ));
+  const nt = f.macro?.cpi_near_term;
+  if (nt?.values?.length) {
+    p.append(h("h2", {}, "Near-term inflation"),
+      h("p", { class: "note" }, `Official near-term forecasts replace the IMF projection for these years (${nt.measure}).`),
+      table(["Year", ["Used", "n"], ["IMF", "n"], "Source", "Verification"],
+        nt.values.map((v: any) => [String(v.year), pct(v.rate), v.imf_rate == null ? "" : pct(v.imf_rate),
+          h("a", { href: v.url, target: "_blank", rel: "noopener" }, `${v.publisher}, ${v.title} (published ${v.published}, accessed ${v.accessed})`),
+          v.verification ?? ""])),
+      nt.latest_actual ? h("p", { class: "note" }, `Latest actual: ${nt.latest_actual.measure} ${pct(nt.latest_actual.rate)} in ${nt.latest_actual.period}, ${nt.latest_actual.publisher}.`) : "");
+  }
+  const ps = f.pricing_sensitivity;
+  if (ps?.by_year?.length) {
+    p.append(h("h2", {}, "Pricing rule sensitivity"),
+      h("p", { class: "note" }, `Default: ${ps.default}. Difference in P50 against the previous rule (${ps.alternative}).`),
+      table(["Year", ["Occupancy growth", "n"], ["ADR growth", "n"], ["RevPAR growth", "n"]],
+        ps.by_year.map((x: any) => [String(x.year), signedPct(x.occ_growth.difference), signedPct(x.adr_growth.difference), signedPct(x.revpar_growth.difference)])));
+  }
   const cs = f.covid_sensitivity;
   p.append(h("h2", {}, "COVID-years sensitivity"),
     h("p", { class: "note" }, `Default: ${cs.default} 2020 to 2022 from estimation. Difference in P50 between the default and the alternative.`),
@@ -607,6 +628,7 @@ function autoValue(key: string, f: Forecast): number | null {
   if (key === "supply.unannounced_rate") return se.unannounced_rate_used ?? null;
   if (key === "anchor.start_year") return f.anchor?.start ?? null;
   if (key === "adr.pricing_power") return se.fitted?.adr_beta ?? null;
+  if (key === "adr.level_dampening") return se.fitted?.adr_beta_level ?? null;
   if (key === "occupancy.ceiling") return se.fitted?.ceiling ?? null;
   return null;
 }
@@ -812,7 +834,8 @@ function whyView(p: HTMLElement, f: Forecast) {
     ["Supply: unannounced", (b) => b.supply.unannounced], ["Supply: drivers", (b) => b.supply.drivers ?? 0],
     ["Supply total", (b) => b.supply.total, true], ["Occupancy (demand minus supply)", (b) => b.occupancy_total, true],
     ["ADR: inflation", (b) => b.adr.inflation], ["ADR: real drift", (b) => b.adr.real_drift],
-    ["ADR: pricing power", (b) => b.adr.pricing_power], ["ADR: carry-over", (b) => b.adr.carry_over],
+    ["ADR: downturn pass-through", (b) => b.adr.downturn ?? 0], ["ADR: occupancy change (inverse)", (b) => b.adr.occ_change ?? 0],
+    ["ADR: occupancy level dampening", (b) => b.adr.occ_level ?? 0], ["ADR: carry-over", (b) => b.adr.carry_over],
     ["ADR: drivers", (b) => b.adr.drivers ?? 0], ["ADR total", (b) => b.adr.total, true],
   ];
   p.append(h("details", { style: "margin-top:8px" }, h("summary", {}, "Growth bridge: every component by year (mean, points)"),

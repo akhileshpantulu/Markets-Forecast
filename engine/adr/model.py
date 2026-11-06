@@ -1,12 +1,19 @@
 """ADR model.
 
-CPI mode (spec 6.5):  dlog ADR(t) = pi(t) + alpha + beta * dlog Occ(t) + r(t)
-Nominal mode:         dlog ADR(t) =         alpha + beta * dlog Occ(t) + r(t)
+CPI mode:      dlog ADR(t) = pi(t) + alpha + pricing(t) + r(t)
+Nominal mode:  dlog ADR(t) =         alpha + pricing(t) + r(t)
 r(t) = rho * r(t-1) + u(t), u correlated with the demand innovation.
 
-Nominal mode is the fallback when no CPI history is loaded; alpha then carries
-the market's average nominal drift. beta is constrained non-negative and shrunk
-toward its prior. numpy only.
+Pricing rule (user decision 2026-11-06, "both"):
+  pricing(t) = beta        * occupancy change from a downturn or its recovery   (rates fall with a shock)
+             + beta_change * occupancy change in normal years                   (inverse: <= 0 by default)
+             + beta_level  * (last year's occupancy - the market's normal level)  (dampening, <= 0)
+             + beta_high   * max(last year's occupancy - high_threshold, 0)     (extra dampening at 90%+)
+beta is fitted on all usable years, constrained non-negative and shrunk toward its prior. beta_change is a
+labelled assumption: history shows occupancy and rate moving together in normal years (beta_change_hat).
+beta_level is fitted on normal years and shrunk toward a non-positive prior; beta_high is an assumption.
+Nominal mode is the fallback when no CPI history is loaded; alpha then carries the average nominal drift.
+numpy only.
 """
 
 from __future__ import annotations
@@ -40,12 +47,37 @@ class AdrModel:
     last_r: float
     last_year: int
     notes: list[str] = field(default_factory=list)
-    occ_trend: float = 0.0    # anchored mode: pricing power acts on occupancy change beyond its long-run trend
+    occ_trend: float = 0.0    # anchored mode: the change response acts on occupancy change beyond its long-run trend
+    beta_change: float = 0.0          # ADR response to occupancy change in normal years (assumption)
+    beta_change_hat: float = float("nan")
+    beta_level: float = 0.0           # per unit of last year's occupancy above occ_ref
+    beta_level_hat: float = float("nan")
+    se_beta_level: float = float("nan")
+    w_beta_level: float = 0.0
+    beta_high: float = 0.0            # extra, per unit above high_threshold
+    high_threshold: float = 0.90
+    occ_ref: float = 0.0              # the market's normal annual occupancy
+
+    def level_effect(self, occ_prev):
+        """Rate dampening (log points) from last year's occupancy level."""
+        return self.beta_level * (occ_prev - self.occ_ref) + self.beta_high * np.maximum(occ_prev - self.high_threshold, 0.0)
 
     def summary(self) -> dict:
         return {k: getattr(self, k) for k in ("mode", "alpha", "beta", "beta_hat", "se_beta", "w_beta", "rho", "rho_hat",
                                                "w_rho", "sigma_u", "sigma_u_hat", "corr", "corr_hat", "w_corr", "years",
-                                               "last_r", "last_year", "notes", "occ_trend")}
+                                               "last_r", "last_year", "notes", "occ_trend", "beta_change", "beta_change_hat",
+                                               "beta_level", "beta_level_hat", "se_beta_level", "w_beta_level", "beta_high",
+                                               "high_threshold", "occ_ref")}
+
+
+def _ols(x: np.ndarray, y: np.ndarray) -> tuple[float, float]:
+    """Slope and its standard error for y on x with an intercept."""
+    if len(x) < 4 or np.ptp(x) == 0:
+        return float("nan"), float("nan")
+    xc = x - x.mean()
+    b = float((xc * (y - y.mean())).sum() / (xc ** 2).sum())
+    res = y - y.mean() - b * xc
+    return b, float(math.sqrt((res ** 2).sum() / (len(x) - 2) / (xc ** 2).sum()))
 
 
 def fit_adr(annual: pd.DataFrame, demand: DemandModel, sample: pd.DataFrame, priors: dict,
@@ -71,8 +103,32 @@ def fit_adr(annual: pd.DataFrame, demand: DemandModel, sample: pd.DataFrame, pri
     se_beta = math.sqrt((res0 ** 2).sum() / max(n - 2, 1) / (xc ** 2).sum()) if n > 2 else float("nan")
     beta, w_beta = _shrink(beta_hat, se_beta, pa["beta_pricing_power"]["mean"], pa["beta_pricing_power"]["sd"])
     beta = max(beta, pa["beta_pricing_power"]["lower"])
-    alpha = float((y - beta * x).mean())
-    r = pd.Series(y - alpha - beta * x, index=years)
+
+    # Occupancy level: last year's annual occupancy against the market's normal level.
+    occ_lvl = annual.set_index("year")["occupancy"] if "occupancy" in annual else pd.Series(dtype=float)
+    normal_lvl = annual.loc[annual["use_occ"] & ~annual.get("covid", pd.Series(False, index=annual.index)), "occupancy"] \
+        if "occupancy" in annual else pd.Series(dtype=float)
+    occ_ref = float(normal_lvl.mean()) if len(normal_lvl) else 0.0
+    occ_prev = np.array([occ_lvl.get(t - 1, np.nan) for t in years], float)
+    occ_prev = np.where(np.isnan(occ_prev), occ_ref, occ_prev)
+    shockish = set(demand.shock_years) | set(demand.recovery_years)
+    calm = np.array([t not in shockish for t in years], bool)
+
+    pc_ = pa.get("occ_change_response", {"value": 0.0})
+    beta_change = float(pc_["value"])
+    beta_change_hat, _ = _ols(x[calm], y[calm])
+    ph = pa.get("high_occupancy", {"threshold": 0.90, "dampening": 0.0})
+    thr, beta_high = float(ph["threshold"]), float(ph["dampening"])
+    hi = np.maximum(occ_prev - thr, 0.0)
+    pl = pa.get("occ_level_dampening", {"mean": 0.0, "sd": 1e-6, "upper": 0.0})
+    z = y - beta_change * x - beta_high * hi
+    bl_hat, se_bl = _ols(occ_prev[calm], z[calm])
+    beta_level, w_bl = _shrink(bl_hat, se_bl, pl["mean"], pl["sd"])
+    beta_level = min(beta_level, pl.get("upper", 0.0))
+
+    pricing = np.where(calm, beta_change * x + beta_level * (occ_prev - occ_ref) + beta_high * hi, beta * x)
+    alpha = float((y - pricing).mean())
+    r = pd.Series(y - alpha - pricing, index=years)
 
     pairs = [(r[t - 1], r[t]) for t in years if (t - 1) in r.index]
     if len(pairs) >= 3:
@@ -111,5 +167,11 @@ def fit_adr(annual: pd.DataFrame, demand: DemandModel, sample: pd.DataFrame, pri
     corr, w_corr = _shrink(corr_hat, se_c, pc["mean"], pc["sd"])
     corr = float(np.clip(corr, -0.9, 0.9))
     last_year = max(years) if years else 0
+    if not np.isnan(beta_change_hat) and beta_change_hat > 0 > beta_change:
+        notes.append(f"Occupancy and ADR moved together in normal years (slope {beta_change_hat:.2f}); the inverse response "
+                     f"of {beta_change:.2f} is a user decision, so the ADR residual absorbs the difference.")
     return AdrModel(mode, alpha, float(beta), beta_hat, se_beta, w_beta, rho, rho_hat, w_rho, float(sigma_u),
-                    sigma_u_hat, corr, corr_hat, w_corr, years, float(r.iloc[-1]) if len(r) else 0.0, last_year, notes)
+                    sigma_u_hat, corr, corr_hat, w_corr, years, float(r.iloc[-1]) if len(r) else 0.0, last_year, notes,
+                    beta_change=beta_change, beta_change_hat=beta_change_hat, beta_level=float(beta_level),
+                    beta_level_hat=bl_hat, se_beta_level=se_bl, w_beta_level=float(w_bl), beta_high=beta_high,
+                    high_threshold=thr, occ_ref=occ_ref)

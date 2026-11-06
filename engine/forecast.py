@@ -79,7 +79,29 @@ def load_inputs(cfg: MarketConfig, config_dir=None) -> tuple[dict, dict, dict]:
             macro["cpi_projections"] = g["cpi_projections"]
         if g.get("real_gdp_growth"):
             macro["real_gdp_growth"] = g["real_gdp_growth"]
+    nt = d / "macro" / "near_term" / f"{cfg.country_iso}.yaml"
+    if nt.exists():
+        apply_near_term(macro, load_yaml(nt))
     return priors, ppri, macro
+
+
+def apply_near_term(macro: dict, nt: dict) -> None:
+    """Official near-term inflation forecasts replace the IMF projection for the years they cover
+    (user decision 2026-11-06). The IMF value is kept next to each replaced year for the report."""
+    proj = macro.setdefault("cpi_projections", {"status": "near_term_only", "values": []})
+    vals = {int(v["year"]): v for v in proj.get("values", [])}
+    hist = cpi_history(macro) or {}
+    used = []
+    for e in nt.get("values") or []:
+        y = int(e["year"])
+        if y in hist or e.get("use") is False:
+            continue
+        imf = float(vals[y]["rate"]) if y in vals else None
+        vals[y] = {"year": y, "rate": float(e["rate"]), "source": "near_term"}
+        used.append({**e, "year": y, "rate": float(e["rate"]), "imf_rate": imf, "measure": nt.get("measure")})
+    proj["values"] = [vals[y] for y in sorted(vals)]
+    macro["cpi_near_term"] = {"updated": nt.get("updated"), "measure": nt.get("measure"), "values": used,
+                              "latest_actual": nt.get("latest_actual")}
 
 
 def cpi_history(macro: dict) -> dict[int, float] | None:
@@ -143,7 +165,8 @@ def run_forecast(res: IngestResult, cfg: MarketConfig, priors: dict, ppri: dict,
     dm = fit_demand(res.growth_sample, priors, covid, include_covid, resid)
     dm_alt = fit_demand(res.growth_sample, priors, covid, not include_covid, resid)
     am = fit_adr(hist.annual, dm, res.growth_sample, priors, cpi)
-    fitted = {"demand_mu": dm.mu, "adr_alpha": am.alpha, "adr_beta": am.beta, "ceiling": hist.ceiling["annual"]}
+    fitted = {"demand_mu": dm.mu, "adr_alpha": am.alpha, "adr_beta": am.beta, "adr_beta_level": am.beta_level,
+              "ceiling": hist.ceiling["annual"]}
     shock_drag0 = dm.expected_shock_drag()
     clean = first_clean_year(res.breaks)
     win = anchor_window(list(hist.annual["year"]), int(hist.annual["year"].max()), set(covid), a_start,
@@ -177,6 +200,14 @@ def run_forecast(res: IngestResult, cfg: MarketConfig, priors: dict, ppri: dict,
         a_.alpha += knobs["drift_bias"]
         if knobs["pricing_power"] is not None:
             a_.beta = max(0.0, float(knobs["pricing_power"]))
+        if knobs["occ_change_response"] is not None:
+            a_.beta_change = float(knobs["occ_change_response"])
+        if knobs["level_dampening"] is not None:
+            a_.beta_level = min(0.0, float(knobs["level_dampening"]))
+        if knobs["high_threshold"] is not None:
+            a_.high_threshold = float(knobs["high_threshold"])
+        if knobs["high_dampening"] is not None:
+            a_.beta_high = min(0.0, float(knobs["high_dampening"]))
     ceiling = dict(hist.ceiling)
     if knobs["ceiling"] is not None:
         ceiling["annual"] = float(knobs["ceiling"])
@@ -236,6 +267,16 @@ def run_forecast(res: IngestResult, cfg: MarketConfig, priors: dict, ppri: dict,
                                                         "difference": a[m]["p50"] - b[m]["p50"]}
                                                     for m in ("occ_growth", "adr_growth", "revpar_growth")}})
 
+    # Pricing rule sensitivity: the previous rule (ADR moves with occupancy change at the fitted pass-through,
+    # no level dampening), so the effect of the user's inverse rule is always reported.
+    am_prev = dataclasses.replace(am, beta_change=am.beta, beta_level=0.0, beta_high=0.0)
+    _, paths_prev = simulate(dm, spread_arr, levels=eff.as_levels(), adr_model=am_prev)
+    pricing_sens = []
+    for a, b in zip(summary, summarise(paths_prev)):
+        pricing_sens.append({"year": a["year"], **{m: {"default_p50": a[m]["p50"], "alternative_p50": b[m]["p50"],
+                                                      "difference": a[m]["p50"] - b[m]["p50"]}
+                                                  for m in ("occ_growth", "adr_growth", "revpar_growth")}})
+
     # Attribution by removal: each driver's effect on the mean, median and spread of growth.
     attrib = []
     if attribution and keep:
@@ -262,6 +303,9 @@ def run_forecast(res: IngestResult, cfg: MarketConfig, priors: dict, ppri: dict,
                                           for m in ("occ_growth", "adr_growth", "revpar_growth", "demand_growth")}})
     positions = position_vs_history(summary, hist.growth_pcts, hist.annual, hist.occ_annual_max)
     cpi_path_out = {str(y): cpi_rate(macro, y) for y in range(y0 + 1, y0 + cfg.horizon_years + 1)} if use_cpi else None
+    nt_years = {int(v["year"]): v for v in (macro.get("cpi_near_term") or {}).get("values", [])}
+    cpi_sources = {str(y): (f"{nt_years[y]['publisher']}, {nt_years[y]['published'][:7]}" if y in nt_years else "IMF")
+                   for y in range(y0 + 1, y0 + cfg.horizon_years + 1)} if use_cpi else None
     mm = res.monthly
     ytd_cur = mm[mm["period_start"].dt.year == y0]
     ytd_prev = mm[(mm["period_start"].dt.year == y0 - 1) & (mm["period_start"].dt.month <= int(last.month))]
@@ -274,7 +318,7 @@ def run_forecast(res: IngestResult, cfg: MarketConfig, priors: dict, ppri: dict,
     explanation = build_explanation(paths, trace, sup, dm, am, hist, summary, positions, ceiling["annual"],
                                     hist_supply_growth, cpi_path_out, anchor=anchor, basis=basis,
                                     supply_trend=hist_supply_used, shock_drag0=shock_drag0,
-                                    stub_ytd=stub_ytd, stub_info=paths.stub_monthly)
+                                    stub_ytd=stub_ytd, stub_info=paths.stub_monthly, cpi_sources=cpi_sources)
 
     proj = sup.projects.copy()
     if not proj.empty:
@@ -306,6 +350,11 @@ def run_forecast(res: IngestResult, cfg: MarketConfig, priors: dict, ppri: dict,
         "Shock regime: shock years, recovery profiles and Beta priors from config/priors.yaml (assumptions) updated with the market's own shock count.",
         "The demand growth lag for the first full year uses the stub year's demand growth, which includes the effect of current closures.",
         "In the ADR equation the occupancy change is clipped to 1.5 times its historical range, so severe shocks do not imply implausible ADR falls.",
+        (f"Pricing rule (user decision): downturns pass through to rate at {am.beta:.2f}% per 1% occupancy change; in normal years "
+         f"rate moves {am.beta_change:+.2f}% per 1% occupancy change beyond trend (history shows "
+         f"{am.beta_change_hat:+.2f}, so this is a judgement); rate growth falls {abs(am.beta_level) * 100:.0f} basis points per "
+         f"point of occupancy above the normal {am.occ_ref:.1%}, and a further {abs(am.beta_high) * 100:.0f} per point above "
+         f"{am.high_threshold:.0%}."),
     ]
     out = {
         "meta": {"engine_version": __version__, "seed": seed, "paths": n_paths, "horizon_years": cfg.horizon_years,
@@ -317,7 +366,8 @@ def run_forecast(res: IngestResult, cfg: MarketConfig, priors: dict, ppri: dict,
         "macro": {"adr_mode": am.mode,
                   "cpi_path": {str(y): cpi_rate(macro, y) for y in range(y0, y0 + cfg.horizon_years + 1)} if use_cpi else None,
                   "cpi_source": (macro.get("cpi_history") or {}).get("source"),
-                  "cpi_projection_note": (macro.get("cpi_projections") or {}).get("assumption")},
+                  "cpi_projection_note": (macro.get("cpi_projections") or {}).get("assumption"),
+                  "cpi_near_term": macro.get("cpi_near_term")},
         "summary": summary,
         "explanation": explanation,
         "adjustments": applied.adjustments,
@@ -331,6 +381,9 @@ def run_forecast(res: IngestResult, cfg: MarketConfig, priors: dict, ppri: dict,
                     "attribution": attrib, "ladder": ladder},
         "positions": positions,
         "covid_sensitivity": {"default": "exclude" if not include_covid else "include", "by_year": sens},
+        "pricing_sensitivity": {"default": "inverse occupancy pricing with level dampening",
+                                "alternative": f"ADR moves {am.beta:.2f}% with each 1% occupancy change, no level dampening",
+                                "by_year": pricing_sens},
         "stub": paths.stub_monthly,
         "base": paths.base,
         "models": {"demand": dm.summary(), "demand_alternative": dm_alt.summary(), "adr": am.summary(),

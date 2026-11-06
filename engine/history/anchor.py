@@ -28,6 +28,7 @@ class Anchor:
     demand: float
     cpi_mean: float | None  # geometric average inflation over (start, end]
     adr_real: float | None
+    occ_mean: float | None = None   # average annual occupancy over the window, COVID years excluded
 
     def log(self, name: str) -> float:
         v = getattr(self, name)
@@ -57,8 +58,9 @@ def compute_anchor(annual: pd.DataFrame, start_year: int | None = None, end_year
     if cpi and all((y in cpi) for y in range(s + 1, e + 1)):
         cpi_mean = float(np.exp(np.mean([np.log1p(cpi[y]) for y in range(s + 1, e + 1)])) - 1)
         adr_real = (1 + cagr("adr")) / (1 + cpi_mean) - 1
+    lv = a.loc[~a["covid"].astype(bool), "occupancy"] if "covid" in a else a["occupancy"]
     return Anchor(s, e, n, cagr("revpar"), cagr("occupancy"), cagr("adr"), cagr("supply"), cagr("demand"),
-                  cpi_mean, adr_real)
+                  cpi_mean, adr_real, float(lv.mean()) if len(lv) else None)
 
 
 def apply_anchor(dm, am, anchor: Anchor, cpi_mode: bool) -> dict:
@@ -66,8 +68,9 @@ def apply_anchor(dm, am, anchor: Anchor, cpi_mode: bool) -> dict:
 
     Demand trend = long-run demand CAGR minus the expected shock drag (history's CAGR already
     contains its downturns, and the shock regime adds them back). ADR drift = long-run ADR CAGR,
-    real in CPI mode (inflation is added each year). Pricing power acts on occupancy change
-    beyond occupancy's own long-run trend. Returns the fitted values it replaced.
+    real in CPI mode (inflation is added each year). The ADR response to occupancy change acts
+    on change beyond occupancy's own long-run trend, and level dampening is measured from the
+    window's average occupancy. Returns the fitted values it replaced.
     """
     fitted = {"demand_mu": dm.mu, "adr_alpha": am.alpha}
     drag = dm.expected_shock_drag()
@@ -77,6 +80,8 @@ def apply_anchor(dm, am, anchor: Anchor, cpi_mode: bool) -> dict:
     else:
         am.alpha = anchor.log("adr")
     am.occ_trend = anchor.log("occupancy")
+    if anchor.occ_mean is not None:
+        am.occ_ref = anchor.occ_mean
     return {**fitted, "shock_drag": drag}
 
 

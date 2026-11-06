@@ -23,7 +23,19 @@ shock:
   severe: {a: 0.5, b: 49.5}                      # prior mean 1% a year
 
 adr:
+  # Downturn pass-through: ADR % per 1% occupancy change in shock and recovery years.
   beta_pricing_power: {mean: 0.50, sd: 0.50, lower: 0.0}
+  # User decision (2026-11-06): occupancy and rate move inversely outside downturns.
+  # ADR % per 1% occupancy change beyond its trend in normal years. ASSUMPTION: history
+  # shows a positive slope in both pilot markets, so this is a judgement, adjustable on the page.
+  occ_change_response: {value: -0.25}
+  # Rate dampening per unit of last year's occupancy above the market's normal level
+  # (-0.20: 5 points above normal takes 1.0 point off real ADR growth). Fitted on normal
+  # years and shrunk toward this prior; never positive.
+  occ_level_dampening: {mean: -0.20, sd: 0.20, upper: 0.0}
+  # Extra dampening per unit of occupancy above the threshold (ASSUMPTION; history has
+  # almost no years at 90%+). -0.50: at 93%, a further 1.5 points off real ADR growth.
+  high_occupancy: {threshold: 0.90, dampening: -0.50}
   residual_phi: {mean: 0.30, sd: 0.30, lower: -0.5, upper: 0.9}
   residual_sd: {mean: 0.040, pseudo_obs: 2}
 

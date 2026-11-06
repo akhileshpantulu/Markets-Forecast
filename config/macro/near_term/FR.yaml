@@ -1,0 +1,49 @@
+# Near-term inflation for France (user decision 2026-11-06: take the current and next years
+# from central bank forecasts, searched and dated at run time; IMF fills the later years).
+# These override config/macro/generated/FR.yaml for the years listed.
+#
+# Source: Banque de France interim macroeconomic projections, September 2026 (annual average
+# HICP). Two caveats, both reported on the page:
+#  1. Measure: Banque de France projects HICP; the CPI history used for real ADR is the national
+#     CPI (IMF). HICP has run above CPI recently (October 2026: HICP 3.8%, CPI 3.4%).
+#  2. Timing: the projections predate the September and October 2026 prints (HICP 3.4% and 3.8%,
+#     energy +24%) and the IMF October 2026 forecast. The December 2026 edition will replace them.
+#
+# Verification: the session network blocks banque-france.fr and insee.fr, so every figure is
+# from search results. 2026 appears in several snippets; 2027 and 2028 in search summaries only.
+country_iso: FR
+updated: '2026-11-06'
+measure: HICP, annual average, annual % change
+values:
+  - year: 2026
+    rate: 0.023
+    publisher: Banque de France
+    title: Projections macroeconomiques intermediaires, septembre 2026
+    url: https://www.banque-france.fr/fr/publications-et-statistiques/publications/projections-macroeconomiques-intermediaires-septembre-2026
+    published: '2026-09-15'
+    accessed: '2026-11-06'
+    verification: search snippets of the Banque de France page, toutsurmesfinances.com and Boursorama (two or more sources)
+  - year: 2027
+    rate: 0.019
+    publisher: Banque de France
+    title: Projections macroeconomiques intermediaires, septembre 2026
+    url: https://www.banque-france.fr/system/files/2026-09/Projections_macroeconomiques_Septembre_2026.pdf
+    published: '2026-09-15'
+    accessed: '2026-11-06'
+    verification: search summary only; check against the PDF
+  - year: 2028
+    rate: 0.016
+    publisher: Banque de France
+    title: Projections macroeconomiques intermediaires, septembre 2026
+    url: https://www.banque-france.fr/system/files/2026-09/Projections_macroeconomiques_Septembre_2026.pdf
+    published: '2026-09-15'
+    accessed: '2026-11-06'
+    verification: search summary only; check against the PDF
+latest_actual:
+  period: 2026-10
+  rate: 0.038
+  measure: HICP, 12-month rate, provisional (CPI 3.4%)
+  publisher: INSEE
+  url: https://www.insee.fr/fr/statistiques/9107965
+  published: '2026-10-30'
+  accessed: '2026-11-06'

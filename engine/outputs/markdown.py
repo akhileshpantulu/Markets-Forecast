@@ -162,7 +162,8 @@ def _why(out: dict) -> list[str]:
             ("Supply: reopenings", ("supply", "reopenings")), ("Supply: unannounced", ("supply", "unannounced")),
             ("Supply: drivers", ("supply", "drivers")), ("Supply total", ("supply", "total")),
             ("Occupancy = demand minus supply", None), ("ADR: inflation", ("adr", "inflation")),
-            ("ADR: real drift", ("adr", "real_drift")), ("ADR: pricing power", ("adr", "pricing_power")),
+            ("ADR: real drift", ("adr", "real_drift")), ("ADR: downturn pass-through", ("adr", "downturn")),
+            ("ADR: occupancy change (inverse)", ("adr", "occ_change")), ("ADR: occupancy level dampening", ("adr", "occ_level")),
             ("ADR: carry-over", ("adr", "carry_over")), ("ADR: drivers", ("adr", "drivers")), ("ADR total", ("adr", "total"))]
     for label, key in rows:
         vals = [b["occupancy_total"] if key is None else b[key[0]].get(key[1]) for b in e["bridge"]]
@@ -253,9 +254,32 @@ def render_baseline(out: dict, cfg: MarketConfig) -> str:
           f"residuals {d['residual_type']}.",
           f"- Shocks: years {', '.join(map(str, d['shock_years'])) or 'none'}; annual probability moderate {lvl(d['p_moderate'])}, "
           f"severe {lvl(d['p_severe'])} (Beta prior updated with {d['exposure_years']} years of history).",
-          f"- ADR ({a['mode']} mode): drift {p(a['alpha'])}, pricing power beta {a['beta']:.2f} (estimate {a['beta_hat']:.2f}, "
-          f"weight {a['w_beta']:.2f}), residual persistence {a['rho']:.2f}, residual sd {lvl(a['sigma_u'])}, "
-          f"correlation with demand {a['corr']:.2f}.", ""]
+          f"- ADR ({a['mode']} mode): drift {p(a['alpha'])}, residual persistence {a['rho']:.2f}, residual sd {lvl(a['sigma_u'])}, "
+          f"correlation with demand {a['corr']:.2f}.",
+          f"- Pricing rule: downturn pass-through {a['beta']:.2f} (estimate {a['beta_hat']:.2f}, weight {a['w_beta']:.2f}); "
+          f"normal-year response to occupancy change {a['beta_change']:+.2f} (assumption; history {a['beta_change_hat']:+.2f}); "
+          f"level dampening {a['beta_level']:+.2f} per unit of occupancy above {lvl(a['occ_ref'])} (estimate "
+          f"{a['beta_level_hat']:+.2f}, weight {a['w_beta_level']:.2f}); extra {a['beta_high']:+.2f} above {lvl(a['high_threshold'])} (assumption).", ""]
+    nt = (out.get("macro") or {}).get("cpi_near_term") or {}
+    if nt.get("values"):
+        L += ["## Near-term inflation", "",
+              f"Official near-term forecasts replace the IMF projection for these years ({nt.get('measure')}).", "",
+              "| Year | Used | IMF | Source | Verification |", "| --- | ---: | ---: | --- | --- |"]
+        for v in nt["values"]:
+            L.append(f"| {v['year']} | {lvl(v['rate'])} | {'' if v.get('imf_rate') is None else lvl(v['imf_rate'])} | "
+                     f"[{v['publisher']}, {v['title']}]({v['url']}), published {v['published']}, accessed {v['accessed']} | {v.get('verification', '')} |")
+        la = nt.get("latest_actual")
+        if la:
+            L.append(f"\nLatest actual: {la['measure']} {lvl(la['rate'])} in {la['period']} ([{la['publisher']}]({la['url']})).")
+        L.append("")
+    ps = out.get("pricing_sensitivity") or {}
+    if ps.get("by_year"):
+        L += ["## Pricing rule sensitivity", "",
+              f"Default: {ps['default']}. Difference in P50 against the previous rule ({ps['alternative']}).", "",
+              "| Year | Occupancy growth | ADR growth | RevPAR growth |", "| --- | ---: | ---: | ---: |"]
+        for r in ps["by_year"]:
+            L.append(f"| {r['year']} | {p(r['occ_growth']['difference'])} | {p(r['adr_growth']['difference'])} | {p(r['revpar_growth']['difference'])} |")
+        L.append("")
     bs = (out.get("anchor") or {}).get("basis_sensitivity") or {}
     if bs.get("by_year"):
         L += ["## Trend basis sensitivity", "",

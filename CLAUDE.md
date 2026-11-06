@@ -58,6 +58,9 @@ Percentages to one decimal place; occupancy points to one decimal place.
 | Event probability ladder (2026-11-06) | Approved: rumour 10% to 25%, credible report 30% to 50%, announced 70% to 90%, tickets on sale 85% to 95%, held 100%, cancelled 0% (`config/driver_priors.yaml`). |
 | Adjustable assumptions (2026-11-06) | The web page has an Assumptions tab for weights and biases. Every change is reported as a user adjustment. |
 | Baseline basis (2026-11-06) | The baseline is the market's long-run CAGR over its whole history: RevPAR = occupancy x ADR, and demand = supply + occupancy. It is adjusted for drivers, supply against its trend, inflation against its history, shocks and momentum. The fitted normal-year trend stays as an alternative setting and is always reported as a sensitivity. |
+| RevPAR identity (2026-11-06) | RevPAR growth = occupancy growth combined with ADR growth. The reported RevPAR P50 is (1 + occupancy P50) x (1 + ADR P50) - 1, and the RevPAR level P50 is occupancy P50 x ADR P50. The median of simulated RevPAR stays in the output as `p50_paths`. Bands (P10 to P90) are from the simulated RevPAR. |
+| Pricing rule (2026-11-06) | Occupancy and rate trade off ("both" forms). In normal years ADR moves inversely to occupancy change beyond trend (`occ_change_response`, assumption -0.25; history shows a positive slope, so it is a judgement). Rate growth is dampened by last year's occupancy above the market's normal level (fitted, shrunk, never positive) and more steeply above 90% (assumption -0.5). Downturns and recoveries still pass through to rate at the fitted coefficient. The previous rule is always run as a sensitivity. |
+| Near-term inflation (2026-11-06) | The current and next years come from official near-term forecasts in `config/macro/near_term/<ISO2>.yaml`, sourced and dated, refreshed by `/forecast`. IMF fills later years. UK: OBR calendar-year CPI (the Bank of England publishes Q4 rates only). France: Banque de France HICP. |
 | Supply source (2026-11-06) | The pipeline drives supply but is not the only source. Supply never falls below the long-run supply trend, from the first forecast year. Only pipeline rooms above the trend bring extra demand. |
 
 ## Architecture decisions
@@ -113,13 +116,14 @@ Each evidence item records `claim, url, publisher, published, accessed`. Primary
   - Shape: `one_off` lifts one year and the next year pays it back; `temporary` decays over `decay_years`; `step` is permanent.
   - Each card has its own random stream, so adding a card never changes the baseline draws.
 - Probability comes from the card, or from `event_status` through the ladder. Cards with validation errors are not applied. Proposed cards are included while `include_proposed` is true, and the run is then provisional.
-- Settings: `engine/settings.py` covers pipeline chance and delay by stage, removals, induced demand, unannounced supply, demand trend and ADR drift biases, pricing power, shock multipliers, inflation path, band width, horizon widening and the ceiling. They are applied after fitting. The backtest is not affected, and is cached across setting changes.
+- Settings: `engine/settings.py` covers pipeline chance and delay by stage, removals, induced demand, unannounced supply, demand trend and ADR drift biases, the occupancy pricing rule (change response, level dampening, 90% threshold, downturn pass-through), shock multipliers, inflation path, band width, horizon widening and the ceiling. They are applied after fitting. The backtest is not affected, and is cached across setting changes.
 - CLI: `python -m engine <market> --drivers <yaml> --settings <json>`. Without `--drivers`, the default is `runs/<market>/drivers.yaml` if present.
 
 ## External public data
 
 - The user supplied API connectors (Eurostat tourism and air passengers, Eurostat HICP accommodation, IMF WEO GDP and CPI, ECB FX, INE Spain). They are listed verbatim in `config/external_sources.yaml`.
 - This session's network blocks those hosts, so `.github/workflows/external-data.yml` fetches them on GitHub's runners on push, every Monday, or on demand. It commits raw responses plus provenance (`*.meta.json`: URL, fetch time, status, SHA-256) to `data/external/`.
+- Near-term inflation overrides: `config/macro/near_term/<ISO2>.yaml` (merged by `engine.forecast.apply_near_term`). Each entry records publisher, title, URL, published, accessed and how it was verified. The session network blocks the official hosts, so the 2026-11-06 entries are search-snippet level and say so.
 - `python -m engine.external.build` turns them into `config/macro/generated/<ISO2>.yaml`. That file holds the CPI history and IMF projections; years after the fetch year minus one count as projections, which is a labelled assumption. The engine prefers this file over the manual `config/macro/<ISO2>.yaml`.
 - The workflow pushes to the working branch. Run `git pull --rebase` before pushing.
 - These are public statistics. They may be committed and bundled into the web page. CoStar data still may not.
@@ -129,6 +133,7 @@ Each evidence item records `claim, url, publisher, published, accessed`. Primary
 - Engine core is numpy and pandas only (no scipy or statsmodels) so the browser loads less.
 - Demand: AR(1) on normal-year log growth. Normal years exclude shock years, their recovery years (up to 2), COVID years (default), break years and partial years. Shrinkage toward `config/priors.yaml` with precision weights.
 - Shocks: a year falling more than 2 robust standard deviations below the median. "Severe" is a log fall beyond 0.5. Profiles come from history. Annual probabilities are Beta priors updated with the shock count.
+- ADR pricing rule (`engine/adr/model.py`): pricing = beta x shock part of the occupancy change + beta_change x the rest (beyond trend) + beta_level x (last year's occupancy - normal) + beta_high x max(last year's occupancy - 90%, 0). The shock part is the demand shock deviation of that year. Normal level = average occupancy over the anchor window, COVID years excluded.
 - ADR: CPI mode when inflation history and projections are available (from `config/macro/generated/`, fetched by the workflow). Otherwise it runs in nominal mode and the gap is recorded. The backtest forecasts inflation naively at each origin: the last observed rate decays to 2%.
 - Stub year: errors are calibrated on how the same rule performed in past years at the same month cutoff.
 - Long-run anchor (`engine/history/anchor.py`):
@@ -143,7 +148,7 @@ Each evidence item records `claim, url, publisher, published, accessed`. Primary
   - Supply floor: monthly rooms = max(long-run supply trend from today's level, stock less removals plus pipeline). The difference is reported as "unannounced". Pipeline rooms above the trend induce demand at the new or reopened share; trend-level rooms do not, because their demand is in the anchor. The Assumptions tab sets the trend share for years 1 and 2.
   - Without this, a thin pipeline lets the historical demand trend push occupancy up to the ceiling.
 - Explanation (`engine/explain.py`): the projection traces every component path by path.
-  - The growth bridge splits mean log growth into demand trend, momentum, shocks, new-hotel demand and ceiling, minus supply (existing stock, removals, new builds, reopenings, unannounced); and ADR into inflation, real drift, pricing power and carry-over. The parts add up exactly.
+  - The growth bridge splits mean log growth into demand trend, momentum, shocks, new-hotel demand and ceiling, minus supply (existing stock, removals, new builds, reopenings, unannounced); and ADR into inflation, real drift, downturn pass-through, occupancy change, occupancy level and carry-over. The parts add up exactly.
   - Year-by-year text uses paths without a shock, which is what the P50 reflects.
   - Plausibility flags: ceiling share, supply against history, P50 outside history P5 to P95, occupancy above the historical maximum, real ADR above 3% for three years, and five-year cumulative RevPAR against the market's own five-year periods.
 - The backtest conditions on realised supply, picks residual type and COVID treatment by CRPS, and calibrates spread only if pooled ex-COVID P10 to P90 coverage falls outside 70% to 90%.

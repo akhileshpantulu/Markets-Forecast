@@ -141,45 +141,42 @@ def simulate_supply(pipeline: pd.DataFrame | None, monthly: pd.DataFrame, months
                      "p_open_horizon": float(live.mean()),
                      "median_open": months[int(np.median(idx[live]))].strftime("%Y-%m") if live.any() else None})
 
-    # Unannounced supply: hotels that will open but are not yet in any pipeline export. Pipelines see
-    # one to two years ahead, so later years would otherwise get almost no new hotels, and occupancy
-    # would drift up whenever the historical demand trend was earned alongside supply growth.
-    # Each forecast year, unannounced supply fills the gap between the market's own historical
-    # supply growth (scaled by how far ahead the year is) and what the pipeline is expected to
-    # deliver that year. No extra induced demand: demand brought by historical supply growth is
-    # already in the demand trend.
+    # Supply floor at the market's long-run trend (user decision, 2026-11-06): the pipeline drives
+    # supply, but it is not the only source. Each month, available rooms are the higher of
+    # (a) the long-run supply trend from today's level and (b) existing stock plus the pipeline.
+    # The gap is "unannounced" supply. Demand for trend-level supply is already in the demand
+    # anchor (long-run demand CAGR), so only pipeline rooms above the trend induce extra demand.
     ua = priors.get("unannounced_supply", {})
     u_rate = 0.0
+    trend = None
     unannounced = np.zeros((n_paths, n_m))
     u_by_year: dict[int, float] = {}
+    pipe = new_rooms + reopened
     if ua.get("enabled", True) and hist_supply_growth is not None:
-        u_rate = float(np.clip(hist_supply_growth, ua.get("min_rate", 0.0), ua.get("max_rate", 0.05)))
-        # Historical growth is net of closures; removals are modelled separately, so gross openings
-        # must cover both to reproduce the historical net rate.
-        rem = priors["removals"]["annual_rate"]
-        removal_mean = (rem["low"] + rem["mode"] + rem["high"]) / 3.0
-        if u_rate > 0:
-            phase = ua.get("trend_share_by_year", [0.0, 0.5, 1.0, 1.0, 1.0])
-            spread = float(ua.get("uncertainty", 0.5))
-            r_path = _tri(rng, {"low": 1 - spread, "mode": 1.0, "high": 1 + spread}, n_paths)
-            stub_year = first.year if first.month > 1 else first.year - 1
-            pipe_rooms = (new_rooms + reopened).mean(axis=0)
-            month_years = np.array([m.year for m in months])
-            cum = np.zeros(n_paths)
-            prev_end = 0.0
-            yearly = {}
-            for y in sorted(set(month_years)):
-                k = y - stub_year - 1                         # 0 for the first full forecast year
-                sel = np.nonzero(month_years == y)[0]
-                end_rooms = float(pipe_rooms[sel[-1]])
-                pipeline_growth = (end_rooms - prev_end) / base
-                prev_end = end_rooms
-                target = (u_rate + removal_mean) * (phase[min(k, len(phase) - 1)] if k >= 0 else 0.0)
-                yearly[y] = max(0.0, target - pipeline_growth)
-            for j, mth in enumerate(months):
-                cum = cum + np.log1p(yearly[mth.year] * r_path) / 12.0
-                unannounced[:, j] = base * np.expm1(cum)
-            u_by_year = {int(k): float(v) for k, v in yearly.items()}
+        u_rate = float(np.clip(hist_supply_growth, ua.get("min_rate", -0.05), ua.get("max_rate", 0.10)))
+        share = ua.get("trend_share_by_year", [1.0, 1.0, 1.0, 1.0, 1.0])
+        spread = float(ua.get("uncertainty", 0.5))
+        r_path = u_rate * _tri(rng, {"low": 1 - spread, "mode": 1.0, "high": 1 + spread}, n_paths)
+        stub_year = first.year if first.month > 1 else first.year - 1
+        cum = np.zeros(n_paths)
+        trend = np.empty((n_paths, n_m))
+        for j, mth in enumerate(months):
+            k = mth.year - stub_year - 1                      # 0 for the first full forecast year
+            w = share[min(k, len(share) - 1)] if k >= 0 else 1.0
+            cum = cum + np.log1p(r_path * w) / 12.0
+            trend[:, j] = base * np.exp(cum)
+        unannounced = np.maximum(0.0, trend - (stock + pipe))
+        allowance = np.maximum(0.0, trend - stock)
+        excess = np.maximum(0.0, pipe - allowance)
+        frac = np.divide(excess, pipe, out=np.zeros_like(pipe), where=pipe > 0)
+        induced = induced * frac
+        month_years = np.array([m.year for m in months])
+        prev = 0.0
+        for y in sorted(set(month_years)):
+            last_j = np.nonzero(month_years == y)[0][-1]
+            end_u = float(unannounced[:, last_j].mean())
+            u_by_year[int(y)] = (end_u - prev) / base
+            prev = end_u
     rooms_flat = stock + new_rooms + reopened + unannounced
     rooms = rooms_flat * season[None, :]
     comps = {"stock_after_removals": stock * season[None, :], "removed": removed * season[None, :],

@@ -23,6 +23,15 @@ def settings_schema(ppri: dict, macro: dict, driver_priors: dict, horizon_years:
     """Groups of fields. kind: percent (shown x100), number, bool, multiplier, months, points.
     default None means the engine works it out from the data (shown as 'auto')."""
     g = []
+    g.append({"id": "baseline", "title": "Baseline",
+              "help": "The baseline is the market's long-run CAGR (RevPAR = occupancy x ADR; demand = supply + occupancy). "
+                      "The alternative fits the trend on normal years only.",
+              "fields": [
+                  {"key": "anchor.basis", "label": "Trend basis", "kind": "select", "default": "long_run_cagr",
+                   "options": [["long_run_cagr", "Long-run CAGR over the whole history"], ["fitted_trend", "Fitted normal-year trend"]]},
+                  {"key": "anchor.start_year", "label": "Long-run CAGR from year (blank: first complete year)", "kind": "year",
+                   "min": 1990, "max": 2030, "step": 1, "default": None},
+              ]})
     g.append({"id": "pipeline", "title": "Pipeline: chance of opening and delay by stage",
               "help": "Probability a project opens within the forecast horizon, and the most likely delay after its projected opening date.",
               "fields": [f for key, label in STAGES for f in (
@@ -40,10 +49,14 @@ def settings_schema(ppri: dict, macro: dict, driver_priors: dict, horizon_years:
                    "default": _tri_mode(ppri["induced_demand"]["share_of_new_rooms"])},
                   {"key": "supply.induced_reopened", "label": "Reopened hotels: share of their former demand that returns", "kind": "percent", "min": 0, "max": 1, "step": 0.05,
                    "default": _tri_mode(ppri["induced_demand"]["share_of_reopened_rooms"])},
-                  {"key": "supply.unannounced_enabled", "label": "Add unannounced supply (hotels not yet in the export)", "kind": "bool",
+                  {"key": "supply.unannounced_enabled", "label": "Keep supply at least on its long-run trend (adds unannounced hotels)", "kind": "bool",
                    "default": bool(ppri.get("unannounced_supply", {}).get("enabled", True))},
-                  {"key": "supply.unannounced_rate", "label": "Unannounced supply growth per year (blank: market's history)", "kind": "percent", "min": 0, "max": 0.05, "step": 0.001,
+                  {"key": "supply.unannounced_rate", "label": "Long-run supply trend per year (blank: market's CAGR)", "kind": "percent", "min": -0.05, "max": 0.10, "step": 0.001,
                    "default": None},
+                  {"key": "supply.trend_share_y1", "label": "Share of the supply trend applied in the first full year", "kind": "percent", "min": 0, "max": 1, "step": 0.05,
+                   "default": float(ppri.get("unannounced_supply", {}).get("trend_share_by_year", [1.0])[0])},
+                  {"key": "supply.trend_share_y2", "label": "Share of the supply trend applied in the second full year", "kind": "percent", "min": 0, "max": 1, "step": 0.05,
+                   "default": float((ppri.get("unannounced_supply", {}).get("trend_share_by_year", [1.0, 1.0]) + [1.0])[1])},
               ]})
     g.append({"id": "demand", "title": "Demand: trend and shocks",
               "help": "Biases tilt the fitted trend. Shock multipliers scale the annual chance of a downturn learned from history.",
@@ -119,6 +132,10 @@ def apply_settings(settings: dict | None, ppri: dict, macro: dict, driver_priors
             return f"x{v:g}"
         if k == "months":
             return f"{v:g} months"
+        if k == "select":
+            return dict(f.get("options", [])).get(v, str(v))
+        if k == "year":
+            return str(int(v))
         return f"{v:g}"
 
     def changed(key) -> bool:
@@ -141,6 +158,11 @@ def apply_settings(settings: dict | None, ppri: dict, macro: dict, driver_priors
         ppri["induced_demand"]["share_of_new_rooms"] = _clamp_tri(ppri["induced_demand"]["share_of_new_rooms"], s["supply.induced_new"])
     if changed("supply.induced_reopened"):
         ppri["induced_demand"]["share_of_reopened_rooms"] = _clamp_tri(ppri["induced_demand"]["share_of_reopened_rooms"], s["supply.induced_reopened"])
+    for i, key in ((0, "supply.trend_share_y1"), (1, "supply.trend_share_y2")):
+        if changed(key):
+            ts = list(ppri.setdefault("unannounced_supply", {}).get("trend_share_by_year", [1.0] * 5))
+            ts[i] = float(s[key])
+            ppri["unannounced_supply"]["trend_share_by_year"] = ts
     if changed("supply.unannounced_enabled"):
         ppri.setdefault("unannounced_supply", {})["enabled"] = bool(s["supply.unannounced_enabled"])
     if "drivers.include_proposed" in s:
@@ -160,5 +182,7 @@ def apply_settings(settings: dict | None, ppri: dict, macro: dict, driver_priors
         "horizon_widening": bool(s.get("uncertainty.horizon_widening", True)),
         "ceiling": s.get("occupancy.ceiling"),
         "unannounced_rate": s.get("supply.unannounced_rate"),
+        "anchor_basis": s.get("anchor.basis") or "long_run_cagr",
+        "anchor_start": int(s["anchor.start_year"]) if s.get("anchor.start_year") not in (None, "") else None,
     }
     return Applied(ppri, macro, driver_priors, knobs, adj)

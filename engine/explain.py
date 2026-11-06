@@ -75,7 +75,8 @@ def _windows(annual: pd.DataFrame, measure: str, flag: str, length: int = 5) -> 
 
 def build_explanation(paths: Paths, trace: dict, sp: SupplyPaths, dm: DemandModel, am: AdrModel, hist,
                       summary: list[dict], positions: list[dict], ceiling: float, hist_supply_growth: float | None,
-                      cpi_path: dict | None) -> dict:
+                      cpi_path: dict | None, anchor=None, basis: str = "fitted_trend",
+                      supply_trend: float | None = None, shock_drag0: float | None = None) -> dict:
     years = paths.years
     tr = trace["years"]
     sup = _supply_split(sp, trace, years)
@@ -149,26 +150,58 @@ def build_explanation(paths: Paths, trace: dict, sp: SupplyPaths, dm: DemandMode
                           f"Cumulative RevPAR growth {years[0]} to {years[5]} at P50 ({pct(p50)}) is above the 90th percentile "
                           f"of the market's own five-year periods ({pct(cum['history_p90'])})."})
 
+    # ---------- reconciliation: long-run baseline to forecast (mean log growth, exact) ----------
+    recon = []
+    if anchor is not None:
+        drag0 = shock_drag0 if shock_drag0 is not None else dm.expected_shock_drag()
+        d_lr, s_lr, adr_lr = anchor.log("demand"), anchor.log("supply"), anchor.log("adr")
+        cpi_lr = float(np.log1p(anchor.cpi_mean)) if (cpi_path and anchor.cpi_mean is not None) else 0.0
+        for b in bridge:
+            d, s_, a = b["demand"], b["supply"], b["adr"]
+            row = {
+                "year": b["year"],
+                "baseline": float(np.log1p(anchor.revpar)),
+                "supply_vs_trend": -(s_["total"] - s_lr) + d["new_hotels"],
+                "pricing_response": a["pricing_power"],
+                "inflation_vs_history": (a["inflation"] - cpi_lr) if cpi_path else 0.0,
+                "shocks_vs_average": d["shocks"] - drag0,
+                "momentum": d["momentum"] + a["carry_over"],
+                "drivers": d.get("drivers", 0.0) + a.get("drivers", 0.0),
+                "ceiling": d["ceiling"],
+                "trend_adjustments": (d["trend"] - (d_lr - drag0)) + (a["real_drift"] - (adr_lr - cpi_lr)),
+                "noise": d["noise"] + a["noise"],
+            }
+            row["total"] = d["total"] - s_["total"] + a["total"]
+            recon.append(row)
+
     # ---------- sentences ----------
-    shock_drag = dm.p_mean("moderate") * np.mean([sum(p.deviations) for p in dm.shock_profiles if p.cls == "moderate"] or [0]) + \
-        dm.p_mean("severe") * np.mean([sum(p.deviations) for p in dm.shock_profiles if p.cls == "severe"] or [0])
+    shock_drag = dm.expected_shock_drag()
     ny = dm.normal_years
+    if anchor is not None and basis == "long_run_cagr":
+        trend_line = (f"Baseline: the market's long-run CAGR from {anchor.start} to {anchor.end}. RevPAR grew {pct(anchor.revpar)} a "
+                      f"year: occupancy {pct(anchor.occupancy)} and ADR {pct(anchor.adr)}"
+                      + (f" (real ADR {pct(anchor.adr_real)} after average inflation of {pct(anchor.cpi_mean)})" if anchor.adr_real is not None and cpi_path else "")
+                      + f". Demand grew {pct(anchor.demand)} a year against supply {pct(anchor.supply)}. The demand trend "
+                      f"({pct(np.expm1(dm.mu))}) is the long-run demand CAGR plus {pp(-shock_drag)} points to offset the expected "
+                      "drag of shocks, so the average path grows at the long-run rate while individual paths still carry downturns.")
+    else:
+        trend_line = (f"Demand trend {pct(np.expm1(dm.mu))} a year: the average growth in {len(ny)} normal years "
+                      f"({min(ny)} to {max(ny)}), shrunk toward the prior with weight {dm.w_mu:.2f} on the data. Shock and recovery "
+                      f"years ({', '.join(map(str, dm.shock_years)) or 'none'}) are modelled separately; their expected drag is "
+                      f"about {pp(shock_drag)} points of growth a year.")
+    st = supply_trend if supply_trend is not None else sp.unannounced_rate
     drivers = [
-        f"Demand trend {pct(np.expm1(dm.mu))} a year: the average growth in {len(ny)} normal years "
-        f"({min(ny)} to {max(ny)}), shrunk toward the prior with weight {dm.w_mu:.2f} on the data. Shock and recovery years "
-        f"({', '.join(map(str, dm.shock_years)) or 'none'}) are modelled separately; their expected drag is about "
-        f"{pp(shock_drag)} points of growth a year.",
+        trend_line,
         f"Momentum: {dm.phi:.2f} of the gap between last year's growth and the trend carries into the next year.",
-        f"Supply: the known pipeline and reopenings, existing stock less removals, and unannounced hotels that fill the gap "
-        f"between the market's median historical supply growth ({pct(sp.unannounced_rate)} a year; half in the second forecast "
-        "year, all from the third) and what the pipeline delivers: "
-        + ", ".join(f"{y} {v * 100:+.1f}%" for y, v in sp.unannounced_by_year.items() if y > years[0]) + "."
-        if sp.unannounced_rate > 0 else
-        "Supply: the known pipeline and reopenings plus existing stock less removals. No unannounced supply is added "
-        "because the market's historical supply growth is zero or negative.",
+        (f"Supply: never below its long-run trend of {pct(st)} a year from today's level. The pipeline drives supply above "
+         "that trend; where it falls short, unannounced hotels fill the gap ("
+         + ", ".join(f"{y} {v * 100:+.1f}%" for y, v in sp.unannounced_by_year.items() if y > years[0])
+         + " of today's rooms). Only pipeline rooms above the trend bring extra demand.")
+        if st is not None else "Supply: the known pipeline and reopenings plus existing stock less removals.",
         f"ADR: {'inflation (' + ', '.join(f'{y} {v * 100:.1f}%' for y, v in cpi_path.items()) + ') plus ' if cpi_path else ''}"
-        f"a real drift of {pct(am.alpha)} a year and pricing power of {am.beta:.2f} (ADR moves {am.beta:.2f}% for each 1% "
-        "change in occupancy).",
+        f"a {'real ' if cpi_path else ''}drift of {pct(am.alpha)} a year and pricing power of {am.beta:.2f} "
+        + ("on occupancy change beyond its long-run trend" if am.occ_trend else "on occupancy change")
+        + f" (ADR moves {am.beta:.2f}% for each 1%).",
     ]
     per_year = []
     for b, r in zip(bridge, summary[1:]):
@@ -192,6 +225,7 @@ def build_explanation(paths: Paths, trace: dict, sp: SupplyPaths, dm: DemandMode
                     f"Demand {pp(d['total'])} points against supply {pp(s_['total'])} points ({main_s}).")
         per_year.append({"year": b["year"], "text": text})
     return {"bridge": bridge, "flags": flags, "drivers": drivers, "per_year": per_year, "cumulative_revpar": cum,
+            "reconciliation": recon,
             "historical_supply_growth": hist_supply_growth, "unannounced_rate": sp.unannounced_rate,
             "unannounced_by_year": {str(k): v for k, v in sp.unannounced_by_year.items()},
             "seasonal_index": sp.seasonal_index,

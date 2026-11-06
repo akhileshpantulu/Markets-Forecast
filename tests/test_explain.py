@@ -73,18 +73,20 @@ def test_without_unannounced_supply_occupancy_drifts_up(grow):
 def test_unannounced_supply_keeps_occupancy_near_history(grow):
     out = run(grow)
     occ = [r["occupancy"]["p50"] for r in out["summary"]]
-    assert occ[-1] - occ[0] < 0.04
-    for r in out["summary"][3:]:
-        assert abs(r["occ_growth"]["p50"]) < 0.012
+    assert abs(occ[-1] - occ[0]) < 0.03
+    for r in out["summary"][1:]:
+        assert abs(r["occ_growth"]["p50"]) < 0.015
     e = out["explanation"]
     assert e["historical_supply_growth"] == pytest.approx(0.025, abs=0.003)
+    assert out["anchor"]["supply"] == pytest.approx(0.025, abs=0.003)
     ub = e["unannounced_by_year"]
     rem = 0.011 / 3                                     # mean removal rate from the triangular prior
-    assert ub["2027"] == 0.0
-    assert ub["2028"] == pytest.approx((0.025 + rem) / 2, abs=0.003)
-    assert ub["2030"] == pytest.approx(0.025 + rem, abs=0.003)
-    late = np.mean([r["supply_growth"]["mean"] for r in out["summary"][3:]])
-    assert late == pytest.approx(0.025, abs=0.004)      # net supply back on the historical trend
+    # Supply floor at the long-run trend from the first full year: unannounced rooms replace removals and
+    # add the trend growth, because the pipeline in this synthetic market is empty.
+    for y in ("2027", "2028", "2030"):
+        assert ub[y] == pytest.approx(0.025 + rem, abs=0.004)
+    for r in out["summary"][1:]:
+        assert r["supply_growth"]["mean"] == pytest.approx(0.025, abs=0.004)
     assert not any("Supply grows" in f["text"] for f in e["flags"])
 
 
@@ -114,3 +116,29 @@ def test_ceiling_flag_fires_when_paths_hit_the_cap():
     p = _no_unannounced()
     out = run(res, p)
     assert any("occupancy ceiling" in f["text"] for f in out["explanation"]["flags"])
+
+
+
+def test_anchor_reproduces_long_run_cagr(grow):
+    """With supply on its trend and no drivers, the forecast's average RevPAR growth is the long-run CAGR."""
+    out = run(grow)
+    a = out["anchor"]
+    assert a["basis"] == "long_run_cagr" and a["start"] == 2005 and a["end"] == 2025
+    assert np.log1p(a["revpar"]) == pytest.approx(np.log1p(a["occupancy"]) + np.log1p(a["adr"]), abs=1e-9)
+    assert np.log1p(a["demand"]) == pytest.approx(np.log1p(a["supply"]) + np.log1p(a["occupancy"]), abs=1e-9)
+    rec = out["explanation"]["reconciliation"]
+    for r in rec:
+        parts = sum(v for k, v in r.items() if k not in ("year", "total"))
+        assert parts == pytest.approx(r["total"], abs=1e-9)                 # the reconciliation is exact
+    late = np.mean([r["total"] for r in rec[2:]])
+    assert late == pytest.approx(np.log1p(a["revpar"]), abs=0.012)
+
+
+def test_trend_basis_setting_and_sensitivity(grow):
+    out = run_forecast(grow, CFG, PRI, PPRI, {}, n_paths=3000, backtest_paths=200, settings={"anchor.basis": "fitted_trend"})
+    assert out["anchor"]["basis"] == "fitted_trend"
+    assert out["anchor"]["basis_sensitivity"]["alternative"] == "long_run_cagr"
+    assert len(out["anchor"]["basis_sensitivity"]["by_year"]) == 6
+    assert any("Trend basis" in a for a in out["adjustments"])
+    variants = {v["variant"] for v in out["backtest"]["variants"]}
+    assert any(v.endswith("/long_run_cagr") for v in variants)

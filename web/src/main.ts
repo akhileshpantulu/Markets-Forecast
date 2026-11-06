@@ -26,7 +26,7 @@ interface Result {
   settings_schema?: SettingGroup[];
 }
 
-interface SettingField { key: string; label: string; kind: string; min?: number; max?: number; step?: number; default: number | boolean | null }
+interface SettingField { key: string; label: string; kind: string; min?: number; max?: number; step?: number; default: number | boolean | string | null; options?: [string, string][] }
 interface SettingGroup { id: string; title: string; help: string; fields: SettingField[] }
 
 type Q = Quantiles;
@@ -50,7 +50,9 @@ interface Forecast {
   backtest: { origins: number[]; chosen: string; spread: number; spread_by_h?: number[]; calibrated: boolean; coverage: Record<string, any>[];
     benchmarks: Record<string, any>[]; variants: Record<string, any>[]; notes: string[] };
   explanation?: { bridge: Record<string, any>[]; flags: { level: string; year: number | null; text: string }[]; drivers: string[];
-    per_year: { year: number; text: string }[]; cumulative_revpar: Record<string, number>; note: string };
+    per_year: { year: number; text: string }[]; cumulative_revpar: Record<string, number>; note: string;
+    reconciliation?: Record<string, number>[] };
+  anchor?: Record<string, any>;
   adjustments?: string[];
   settings_effective?: Record<string, any>;
   drivers?: { cards: any[]; applied: any[]; issues: { id: string; level: string; text: string }[]; attribution: any[]; ladder: Record<string, any> };
@@ -603,13 +605,16 @@ async function rerun() {
 function autoValue(key: string, f: Forecast): number | null {
   const se = f.settings_effective ?? {};
   if (key === "supply.unannounced_rate") return se.unannounced_rate_used ?? null;
+  if (key === "anchor.start_year") return f.anchor?.start ?? null;
   if (key === "adr.pricing_power") return se.fitted?.adr_beta ?? null;
   if (key === "occupancy.ceiling") return se.fitted?.ceiling ?? null;
   return null;
 }
 
-function fmtSetting(kind: string, v: unknown): string {
+function fmtSetting(kind: string, v: unknown, fd?: SettingField): string {
   if (v === null || v === undefined) return "auto";
+  if (kind === "select") return (fd?.options ?? []).find(([k]) => k === v)?.[1] ?? String(v);
+  if (kind === "year") return String(v);
   if (typeof v === "boolean") return v ? "on" : "off";
   const n = Number(v);
   if (kind === "percent") return `${(n * 100).toFixed(1)}%`;
@@ -623,6 +628,10 @@ function settingInput(fd: SettingField, f: Forecast) {
   const scale = fd.kind === "percent" || fd.kind === "points" ? 100 : 1;
   const cur = fd.key in state.settings ? state.settings[fd.key] : fd.default;
   const id = `set-${fd.key.replace(/\./g, "-")}`;
+  if (fd.kind === "select") {
+    return h("select", { id, "aria-label": fd.label, onchange: (e: Event) => { state.settings[fd.key] = (e.target as HTMLSelectElement).value; save(); renderResults(); } },
+      (fd.options ?? []).map(([v, lab]) => h("option", { value: v, selected: cur === v }, lab)));
+  }
   if (fd.kind === "bool") {
     return h("input", { type: "checkbox", id, checked: Boolean(cur), "aria-label": fd.label,
       onchange: (e: Event) => { state.settings[fd.key] = (e.target as HTMLInputElement).checked; save(); renderResults(); } });
@@ -660,7 +669,7 @@ function assumptionsView(p: HTMLElement, r: Result) {
         const cur = fd.key in state.settings ? state.settings[fd.key] : fd.default;
         const changed = fd.key in state.settings && state.settings[fd.key] !== fd.default;
         return [h("label", { for: `set-${fd.key.replace(/\./g, "-")}` }, fd.label), settingInput(fd, f),
-          fmtSetting(fd.kind, fd.default === null ? autoValue(fd.key, f) : fd.default) + (fd.default === null ? " (auto)" : ""),
+          fmtSetting(fd.kind, fd.default === null ? autoValue(fd.key, f) : fd.default, fd) + (fd.default === null ? " (auto)" : ""),
           changed ? badge("warn", "changed") : (cur === null ? "" : "")];
       })));
   }
@@ -769,6 +778,19 @@ function whyView(p: HTMLElement, f: Forecast) {
     p.append(h("p", { class: "note" }, "No plausibility flags: each year's P50 sits inside the market's historical range, occupancy stays below the ceiling, and supply keeps pace with its history."));
   }
   p.append(h("h3", { style: "margin-top:12px" }, "What drives it"), h("ul", {}, e.drivers.map((d) => h("li", {}, d))));
+  if (e.reconciliation?.length) {
+    const rec = e.reconciliation;
+    const steps: [string, string, boolean?][] = [
+      ["Long-run RevPAR CAGR (baseline)", "baseline", true], ["Supply against its trend, net of new-hotel demand", "supply_vs_trend"],
+      ["Pricing response to occupancy", "pricing_response"], ["Inflation against its history", "inflation_vs_history"],
+      ["Shocks against their average", "shocks_vs_average"], ["Momentum and carry-over", "momentum"], ["Drivers", "drivers"],
+      ["Occupancy ceiling", "ceiling"], ["Trend adjustments (basis or yours)", "trend_adjustments"], ["Noise (mean)", "noise"],
+      ["Forecast RevPAR growth (mean)", "total", true]];
+    p.append(h("h3", { style: "margin-top:12px" }, "From the long-run baseline to the forecast"),
+      h("p", { class: "note" }, "Mean RevPAR growth each year, starting from the market's long-run CAGR and adding each reason it differs. Points of log growth, about equal to percent; the rows add up exactly."),
+      table(["Step", ...rec.map((r) => [String(r.year), "n"] as [string, string])],
+        steps.map(([label, k, bold]) => [bold ? h("b", {}, label) : label, ...rec.map((r) => bold ? h("b", {}, bp(r[k])) : bp(r[k]))])));
+  }
   const c = e.cumulative_revpar;
   if (c && c.history_n) {
     p.append(h("p", {}, `Cumulative RevPAR growth ${c.from_year} to ${c.to_year}: P50 ${signedPct(c.forecast_p50)} (P10 ${signedPct(c.forecast_p10)}, P90 ${signedPct(c.forecast_p90)}). `,

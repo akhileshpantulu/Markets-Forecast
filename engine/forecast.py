@@ -21,6 +21,7 @@ from engine.demand.baseline import fit_demand
 from engine.drivers.apply import build_effects
 from engine.drivers.validate import check_cards, parse_cards
 from engine.explain import build_explanation
+from engine.history.anchor import apply_anchor, compute_anchor
 from engine.settings import apply_settings
 import dataclasses
 from engine.history.analysis import analyse_history
@@ -128,11 +129,13 @@ def run_forecast(res: IngestResult, cfg: MarketConfig, priors: dict, ppri: dict,
     hist = analyse_history(res.monthly_spliced, res.growth_sample, cfg, cpi)
 
     # The backtest tests the baseline engine on history; user settings do not change it, so it is cached.
-    bt_key = (res.run_id, seed, backtest_paths, bool(cpi))
+    basis, a_start = knobs["anchor_basis"], knobs["anchor_start"]
+    bt_key = (res.run_id, seed, backtest_paths, bool(cpi), basis, a_start)
     if cache is not None and cache.get("bt_key") == bt_key:
         bt = cache["bt"]
     else:
-        bt = run_backtest(res.monthly_spliced, res.growth_sample, hist.annual, cfg, priors, seed, backtest_paths, cpi=cpi)
+        bt = run_backtest(res.monthly_spliced, res.growth_sample, hist.annual, cfg, priors, seed, backtest_paths, cpi=cpi,
+                          anchor_basis=basis, anchor_start=a_start)
         if cache is not None:
             cache.update({"bt_key": bt_key, "bt": bt})
     include_covid = bt.chosen.startswith("with_covid")
@@ -141,14 +144,34 @@ def run_forecast(res: IngestResult, cfg: MarketConfig, priors: dict, ppri: dict,
     dm_alt = fit_demand(res.growth_sample, priors, covid, not include_covid, resid)
     am = fit_adr(hist.annual, dm, res.growth_sample, priors, cpi)
     fitted = {"demand_mu": dm.mu, "adr_alpha": am.alpha, "adr_beta": am.beta, "ceiling": hist.ceiling["annual"]}
-    # User biases are applied after fitting and reported as adjustments.
-    for m_ in (dm, dm_alt):
+    shock_drag0 = dm.expected_shock_drag()
+    anchor = compute_anchor(hist.annual, a_start, None, cpi)
+    am_alt = dataclasses.replace(am)
+    anchor_info = None
+    if anchor is not None:
+        dm_fit, am_fit = dataclasses.replace(dm), dataclasses.replace(am)
+        if basis == "long_run_cagr":
+            anchor_info = apply_anchor(dm, am, anchor, am.mode == "cpi")
+            apply_anchor(dm_alt, am_alt, anchor, am.mode == "cpi")
+            dm_other, am_other = dm_fit, am_fit
+        else:
+            dm_other, am_other = dataclasses.replace(dm), dataclasses.replace(am)
+            apply_anchor(dm_other, am_other, anchor, am.mode == "cpi")
+    else:
+        dm_other, am_other = None, None
+    # User biases are applied after anchoring and reported as adjustments.
+    for m_ in (dm, dm_alt, dm_other):
+        if m_ is None:
+            continue
         m_.mu += knobs["trend_bias"]
         m_.p_scale_moderate = knobs["shock_mult_moderate"]
         m_.p_scale_severe = knobs["shock_mult_severe"]
-    am.alpha += knobs["drift_bias"]
-    if knobs["pricing_power"] is not None:
-        am.beta = max(0.0, float(knobs["pricing_power"]))
+    for a_ in (am, am_alt, am_other):
+        if a_ is None:
+            continue
+        a_.alpha += knobs["drift_bias"]
+        if knobs["pricing_power"] is not None:
+            a_.beta = max(0.0, float(knobs["pricing_power"]))
     ceiling = dict(hist.ceiling)
     if knobs["ceiling"] is not None:
         ceiling["annual"] = float(knobs["ceiling"])
@@ -164,7 +187,9 @@ def run_forecast(res: IngestResult, cfg: MarketConfig, priors: dict, ppri: dict,
     gs = res.growth_sample
     sg = gs.loc[gs["use_supply"], "g_supply"].dropna()
     hist_supply_growth = float(np.expm1(sg.median())) if len(sg) >= 5 else None
-    hist_supply_used = float(knobs["unannounced_rate"]) if knobs["unannounced_rate"] is not None else hist_supply_growth
+    # Supply trend: the long-run supply CAGR (user decision), falling back to the median growth.
+    supply_trend = anchor.supply if anchor is not None else hist_supply_growth
+    hist_supply_used = float(knobs["unannounced_rate"]) if knobs["unannounced_rate"] is not None else supply_trend
 
     # Drivers: parse, check, and turn into per-path effects.
     years_all = [y0 + i for i in range(cfg.horizon_years + 1)]
@@ -179,15 +204,16 @@ def run_forecast(res: IngestResult, cfg: MarketConfig, priors: dict, ppri: dict,
         return build_effects(card_list, years_all, n, seed, base_rooms, ladder, cutoff,
                              shock_cap=float(driver_priors.get("shock_multiplier_cap", 5.0)))
 
-    def simulate(model, k, trace=None, n=None, levels=None):
+    def simulate(model, k, trace=None, n=None, levels=None, adr_model=None):
         n = n or n_paths
+        adr_m = adr_model or am
         rng = np.random.default_rng(seed)
         sup = simulate_supply(res.pipeline, res.monthly, months, ppri, n, rng, hist_supply_used, covid)
         cp = cpi_paths(macro, [y0 + i for i in range(1, cfg.horizon_years + 1)], n, rng) if use_cpi else None
         c0 = cpi_rate(macro, y0) if use_cpi else 0.0
         if use_cpi and (cp is None or c0 is None):
             raise ValueError("CPI mode needs inflation for the stub year and every forecast year")
-        return sup, simulate_baseline(res.monthly_spliced, hist.annual, model, am, sup, ceiling, cfg.horizon_years,
+        return sup, simulate_baseline(res.monthly_spliced, hist.annual, model, adr_m, sup, ceiling, cfg.horizon_years,
                                       n, rng, covid, k, cp, c0, trace, levels)
 
     trace: dict = {}
@@ -196,7 +222,14 @@ def run_forecast(res: IngestResult, cfg: MarketConfig, priors: dict, ppri: dict,
     eff = effects(keep, n_paths)
     sup, paths = simulate(dm, spread_arr, trace, levels=eff.as_levels())
     summary = summarise(paths)
-    _, paths_alt = simulate(dm_alt, spread_arr, levels=eff.as_levels())
+    _, paths_alt = simulate(dm_alt, spread_arr, levels=eff.as_levels(), adr_model=am_alt)
+    basis_sens = []
+    if dm_other is not None:
+        _, paths_other = simulate(dm_other, spread_arr, levels=eff.as_levels(), adr_model=am_other)
+        for a, b in zip(summarise(paths), summarise(paths_other)):
+            basis_sens.append({"year": a["year"], **{m: {"default_p50": a[m]["p50"], "alternative_p50": b[m]["p50"],
+                                                        "difference": a[m]["p50"] - b[m]["p50"]}
+                                                    for m in ("occ_growth", "adr_growth", "revpar_growth")}})
 
     # Attribution by removal: each driver's effect on the mean, median and spread of growth.
     attrib = []
@@ -225,7 +258,8 @@ def run_forecast(res: IngestResult, cfg: MarketConfig, priors: dict, ppri: dict,
     positions = position_vs_history(summary, hist.growth_pcts, hist.annual, hist.occ_annual_max)
     cpi_path_out = {str(y): cpi_rate(macro, y) for y in range(y0 + 1, y0 + cfg.horizon_years + 1)} if use_cpi else None
     explanation = build_explanation(paths, trace, sup, dm, am, hist, summary, positions, ceiling["annual"],
-                                    hist_supply_growth, cpi_path_out)
+                                    hist_supply_growth, cpi_path_out, anchor=anchor, basis=basis,
+                                    supply_trend=hist_supply_used, shock_drag0=shock_drag0)
 
     proj = sup.projects.copy()
     if not proj.empty:
@@ -243,10 +277,16 @@ def run_forecast(res: IngestResult, cfg: MarketConfig, priors: dict, ppri: dict,
     assumptions = [
         f"Occupancy ceiling {hist.ceiling['annual']:.1%}: {hist.ceiling['basis']}",
         "Pipeline stage probabilities, delays, removals, ramp-up and induced-demand shares from config/pipeline_priors.yaml (assumptions).",
-        (f"Unannounced supply: hotels not yet in the pipeline export fill the gap between the market's median historical supply "
-         f"growth ({hist_supply_growth:.1%} a year; none in the first forecast year, half in the second, all from the third) and "
-         "what the pipeline delivers each year. No extra induced demand.")
-        if hist_supply_growth and hist_supply_growth > 0 else "No unannounced supply added (historical supply growth not positive or too short).",
+        (f"Supply floor: available rooms never fall below the market's long-run supply trend ({hist_supply_used:.1%} a year"
+         + (f", CAGR {anchor.start} to {anchor.end}" if anchor is not None and knobs["unannounced_rate"] is None else ", set by the user")
+         + "). The pipeline drives supply above that trend; the gap below it is unannounced supply. Only pipeline rooms above the "
+         "trend bring extra demand, because demand for trend supply is in the demand anchor.")
+        if hist_supply_used is not None else "No supply trend applied (history too short).",
+        (f"Baseline: long-run CAGRs {anchor.start} to {anchor.end} (RevPAR {anchor.revpar:.1%}, occupancy {anchor.occupancy:.1%}, "
+         f"ADR {anchor.adr:.1%}, demand {anchor.demand:.1%}, supply {anchor.supply:.1%} a year). The demand trend adds back the "
+         "expected drag of shocks so the average path matches the long-run rate.")
+        if (anchor is not None and basis == "long_run_cagr") else
+        "Baseline: demand and ADR trends fitted on normal years (user setting).",
         f"Induced demand from new rooms assumes they stabilise at the trailing 12-month occupancy ({sup.ref_occupancy:.1%}).",
         "Shock regime: shock years, recovery profiles and Beta priors from config/priors.yaml (assumptions) updated with the market's own shock count.",
         "The demand growth lag for the first full year uses the stub year's demand growth, which includes the effect of current closures.",
@@ -266,6 +306,10 @@ def run_forecast(res: IngestResult, cfg: MarketConfig, priors: dict, ppri: dict,
         "summary": summary,
         "explanation": explanation,
         "adjustments": applied.adjustments,
+        "anchor": {**(anchor.to_dict() if anchor else {}), "basis": basis, "applied": anchor_info,
+                   "basis_sensitivity": {"default": basis,
+                                         "alternative": "fitted_trend" if basis == "long_run_cagr" else "long_run_cagr",
+                                         "by_year": basis_sens}},
         "settings_effective": {**knobs, "fitted": fitted, "unannounced_rate_used": hist_supply_used,
                                "spread_by_year": list(spread_arr)},
         "drivers": {"cards": [c.model_dump() for c in cards], "applied": eff.applied, "issues": driver_issues,

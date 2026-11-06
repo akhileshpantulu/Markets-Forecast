@@ -57,6 +57,8 @@ Percentages to one decimal place; occupancy points to one decimal place.
 | Drivers raising shock probability (2026-11-06) | Approved: `affects: shock_probability` with a multiplier on the market's own shock rate. |
 | Event probability ladder (2026-11-06) | Approved: rumour 10% to 25%, credible report 30% to 50%, announced 70% to 90%, tickets on sale 85% to 95%, held 100%, cancelled 0% (`config/driver_priors.yaml`). |
 | Adjustable assumptions (2026-11-06) | The web page has an Assumptions tab for weights and biases. Every change is reported as a user adjustment. |
+| Baseline basis (2026-11-06) | The baseline is the market's long-run CAGR over its whole history: RevPAR = occupancy x ADR, and demand = supply + occupancy. It is adjusted for drivers, supply against its trend, inflation against its history, shocks and momentum. The fitted normal-year trend stays as an alternative setting and is always reported as a sensitivity. |
+| Supply source (2026-11-06) | The pipeline drives supply but is not the only source. Supply never falls below the long-run supply trend, from the first forecast year. Only pipeline rooms above the trend bring extra demand. |
 
 ## Architecture decisions
 
@@ -128,9 +130,16 @@ Each evidence item records `claim, url, publisher, published, accessed`. Primary
 - Shocks: a year falling more than 2 robust standard deviations below the median. "Severe" is a log fall beyond 0.5. Profiles come from history. Annual probabilities are Beta priors updated with the shock count.
 - ADR: CPI mode when inflation history and projections are available (from `config/macro/generated/`, fetched by the workflow). Otherwise it runs in nominal mode and the gap is recorded. The backtest forecasts inflation naively at each origin: the last observed rate decays to 2%.
 - Stub year: errors are calibrated on how the same rule performed in past years at the same month cutoff.
-- Supply realism (added after the user flagged aggressive growth in another market):
+- Long-run anchor (`engine/history/anchor.py`):
+  - CAGRs run from the first to the last complete year, on spliced levels.
+  - Demand trend = demand CAGR minus the expected shock drag.
+  - ADR drift = ADR CAGR, in real terms in CPI mode.
+  - Pricing power acts on occupancy change beyond occupancy's own CAGR.
+  - The backtest anchors at each origin on data up to that origin. It also reports the fitted-trend basis for comparison.
+  - `explanation.reconciliation` walks from the long-run RevPAR CAGR to the forecast year by year, and the rows add up exactly.
+- Supply realism (added after the user flagged aggressive growth in another market; the floor rule replaced the phase-in on 2026-11-06):
   - Future months follow the recent seasonal pattern of available rooms, so markets with seasonal closures are handled.
-  - "Unannounced supply" fills the gap between the market's median historical net supply growth (plus removals) and what the pipeline delivers each year. The pipeline alone covers year 1, half the trend applies in year 2, and the full trend from year 3. It adds no induced demand, because that is already in the demand trend.
+  - Supply floor: monthly rooms = max(long-run supply trend from today's level, stock less removals plus pipeline). The difference is reported as "unannounced". Pipeline rooms above the trend induce demand at the new or reopened share; trend-level rooms do not, because their demand is in the anchor. The Assumptions tab sets the trend share for years 1 and 2.
   - Without this, a thin pipeline lets the historical demand trend push occupancy up to the ceiling.
 - Explanation (`engine/explain.py`): the projection traces every component path by path.
   - The growth bridge splits mean log growth into demand trend, momentum, shocks, new-hotel demand and ceiling, minus supply (existing stock, removals, new builds, reopenings, unannounced); and ADR into inflation, real drift, pricing power and carry-over. The parts add up exactly.

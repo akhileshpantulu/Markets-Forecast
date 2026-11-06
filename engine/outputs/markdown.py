@@ -127,6 +127,19 @@ def _why(out: dict) -> list[str]:
     else:
         L += ["No plausibility flags: each year's P50 sits inside the market's historical range.", ""]
     L += ["**What drives it**", ""] + [f"- {d}" for d in e["drivers"]] + [""]
+    if e.get("reconciliation"):
+        rec = e["reconciliation"]
+        yrs = [r["year"] for r in rec]
+        L += ["**From the long-run baseline to the forecast** (mean log growth of RevPAR, points; the rows add up exactly)", "",
+              "| Step | " + " | ".join(map(str, yrs)) + " |", "| --- | " + " | ".join("---:" for _ in yrs) + " |"]
+        rows = [("Long-run RevPAR CAGR (baseline)", "baseline"), ("Supply against its trend, net of new-hotel demand", "supply_vs_trend"),
+                ("Pricing response to occupancy", "pricing_response"), ("Inflation against its history", "inflation_vs_history"),
+                ("Shocks against their average", "shocks_vs_average"), ("Momentum and carry-over", "momentum"),
+                ("Drivers", "drivers"), ("Occupancy ceiling", "ceiling"), ("Trend adjustments (basis or user)", "trend_adjustments"),
+                ("Noise (mean)", "noise"), ("**Forecast (mean)**", "total")]
+        for label, k in rows:
+            L.append(f"| {label} | " + " | ".join(_bp(r[k]) for r in rec) + " |")
+        L.append("")
     c = e.get("cumulative_revpar") or {}
     if c:
         L += [f"Cumulative RevPAR growth {c['from_year']} to {c['to_year']}: P50 {p(c['forecast_p50'])} (P10 {p(c['forecast_p10'])}, "
@@ -248,6 +261,14 @@ def render_baseline(out: dict, cfg: MarketConfig) -> str:
           f"- ADR ({a['mode']} mode): drift {p(a['alpha'])}, pricing power beta {a['beta']:.2f} (estimate {a['beta_hat']:.2f}, "
           f"weight {a['w_beta']:.2f}), residual persistence {a['rho']:.2f}, residual sd {lvl(a['sigma_u'])}, "
           f"correlation with demand {a['corr']:.2f}.", ""]
+    bs = (out.get("anchor") or {}).get("basis_sensitivity") or {}
+    if bs.get("by_year"):
+        L += ["## Trend basis sensitivity", "",
+              f"Default: {bs['default'].replace('_', ' ')}. Difference in P50 against the {bs['alternative'].replace('_', ' ')}.", "",
+              "| Year | Occupancy growth | ADR growth | RevPAR growth |", "| --- | ---: | ---: | ---: |"]
+        for r in bs["by_year"]:
+            L.append(f"| {r['year']} | {p(r['occ_growth']['difference'])} | {p(r['adr_growth']['difference'])} | {p(r['revpar_growth']['difference'])} |")
+        L.append("")
     cs = out["covid_sensitivity"]
     L += ["## COVID-years sensitivity", "",
           f"Default: {cs['default']} 2020 to 2022 from estimation. Difference in P50 between the default and the alternative.", "",

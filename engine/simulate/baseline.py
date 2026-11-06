@@ -136,7 +136,7 @@ def project_years(dm: DemandModel, am: AdrModel, rng: np.random.Generator, n_pat
     org = (d0 - induced0) * np.exp(-Ld[:, 0])           # organic demand excludes driver effects
     dlog_occ0 = np.log(occ0 / occ_prev)
     pi0 = np.log1p(cpi0) if cpi is not None else 0.0
-    r = np.log(adr0 / adr_prev) - pi0 - am.alpha - am.beta * np.clip(dlog_occ0, *x_range) - La[:, 0]
+    r = np.log(adr0 / adr_prev) - pi0 - am.alpha - am.beta * np.clip(dlog_occ0 - am.occ_trend, *x_range) - La[:, 0]
     occ_out = np.empty((n_paths, n_years)); adr_out = np.empty((n_paths, n_years)); dem_out = np.empty((n_paths, n_years))
     occ_p, adr_p, gn = occ0, adr0, g_lag
     # Ratios at the origin for the trace: total/organic demand, and capped/uncapped demand.
@@ -156,7 +156,7 @@ def project_years(dm: DemandModel, am: AdrModel, rng: np.random.Generator, n_pat
         dem = occ * supply[:, t]
         carry = am.rho * r
         r = carry + sig_u * (c * z[:, t] + math.sqrt(1 - c * c) * z2[:, t])
-        x = np.clip(np.log(occ / occ_p), *x_range)
+        x = np.clip(np.log(occ / occ_p) - am.occ_trend, *x_range)
         pi = np.log1p(cpi[:, t]) if cpi is not None else 0.0
         d_la = La[:, t + 1] - La[:, t]
         adr = adr_p * np.exp(pi + am.alpha + am.beta * x + r + d_la)

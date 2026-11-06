@@ -40,11 +40,12 @@ class AdrModel:
     last_r: float
     last_year: int
     notes: list[str] = field(default_factory=list)
+    occ_trend: float = 0.0    # anchored mode: pricing power acts on occupancy change beyond its long-run trend
 
     def summary(self) -> dict:
         return {k: getattr(self, k) for k in ("mode", "alpha", "beta", "beta_hat", "se_beta", "w_beta", "rho", "rho_hat",
                                                "w_rho", "sigma_u", "sigma_u_hat", "corr", "corr_hat", "w_corr", "years",
-                                               "last_r", "last_year", "notes")}
+                                               "last_r", "last_year", "notes", "occ_trend")}
 
 
 def fit_adr(annual: pd.DataFrame, demand: DemandModel, sample: pd.DataFrame, priors: dict,

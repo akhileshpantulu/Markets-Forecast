@@ -22,6 +22,7 @@ from engine.adr.model import fit_adr
 from engine.config import MarketConfig
 from engine.demand.baseline import fit_demand
 from engine.history.analysis import occupancy_ceiling
+from engine.history.anchor import apply_anchor, compute_anchor
 from engine.simulate.baseline import _x_range, project_years
 
 MEASURES = ("demand_growth", "occ_growth", "adr_growth", "revpar_growth")
@@ -88,7 +89,8 @@ def naive_cpi_path(cpi: dict[int, float], origin: int, H: int, n: int, rng: np.r
 
 def run_backtest(monthly_spliced: pd.DataFrame, sample: pd.DataFrame, annual_hist: pd.DataFrame, cfg: MarketConfig,
                  priors: dict, seed: int, n_paths: int | None = None, max_h: int = 5,
-                 cpi: dict[int, float] | None = None) -> BacktestResult:
+                 cpi: dict[int, float] | None = None, anchor_basis: str = "long_run_cagr",
+                 anchor_start: int | None = None) -> BacktestResult:
     pb = priors["backtest"]
     n_paths = n_paths or pb["paths"]
     lv = _annual_levels(monthly_spliced)
@@ -99,7 +101,8 @@ def run_backtest(monthly_spliced: pd.DataFrame, sample: pd.DataFrame, annual_his
                and sum(1 for y in usable_years if y <= t) >= pb["first_origin_min_years"]]
     variants = [Variant(False, "bootstrap"), Variant(False, "student_t"), Variant(True, "bootstrap"), Variant(True, "student_t")]
 
-    def run(vi: int, var: Variant, k, label: float | None = None) -> list[dict]:
+    def run(vi: int, var: Variant, k, label: float | None = None, basis: str | None = None,
+            key: str | None = None) -> list[dict]:
         """k: spread multiplier, a float or one value per horizon. label: value stored in the 'spread' column."""
         k_arr = np.broadcast_to(np.asarray(k, float), (max_h,))
         label = float(k) if label is None else label
@@ -111,6 +114,10 @@ def run_backtest(monthly_spliced: pd.DataFrame, sample: pd.DataFrame, annual_his
                 dm = fit_demand(s_T, priors, cfg.estimation.covid_years, var.include_covid, var.residual_type)
                 cpi_T = {y: v for y, v in cpi.items() if y <= T} if cpi else None
                 am = fit_adr(a_T, dm, s_T, priors, cpi_T)
+                if (basis or anchor_basis) == "long_run_cagr":
+                    anc = compute_anchor(a_T, anchor_start, T, cpi_T)
+                    if anc is not None:
+                        apply_anchor(dm, am, anc, am.mode == "cpi")
             except Exception:  # too little data at this origin for this variant
                 continue
             ceil = occupancy_ceiling(monthly_spliced[monthly_spliced["period_start"].dt.year <= T], cfg)["annual"]
@@ -148,7 +155,7 @@ def run_backtest(monthly_spliced: pd.DataFrame, sample: pd.DataFrame, annual_his
                     x = sims[meas][:, h - 1]
                     q10, q25, q50, q75, q90 = np.percentile(x, [10, 25, 50, 75, 90])
                     yv = float(act[meas])
-                    out.append({"variant": var.key, "spread": label, "origin": T, "h": h, "year": y, "measure": meas,
+                    out.append({"variant": key or var.key, "spread": label, "origin": T, "h": h, "year": y, "measure": meas,
                                 "actual": yv, "p10": q10, "p50": q50, "p90": q90,
                                 "in80": q10 <= yv <= q90, "in50": q25 <= yv <= q75, "crps": crps_sample(x, yv),
                                 "err_median": q50 - yv, "zero_abs": abs(yv), "mean_abs": abs(hist_mean[meas] - yv),
@@ -158,8 +165,14 @@ def run_backtest(monthly_spliced: pd.DataFrame, sample: pd.DataFrame, annual_his
     rows = []
     for vi, var in enumerate(variants):
         rows += run(vi, var, 1.0)
+    # The other trend basis, for comparison (reported, never chosen automatically).
+    other = "fitted_trend" if anchor_basis == "long_run_cagr" else "long_run_cagr"
+    for vi, var in enumerate(variants[:2]):
+        rows += run(vi, var, 1.0, basis=other, key=f"{var.key}/{other}")
     rec = pd.DataFrame(rows)
-    notes = ["Supply is realised supply (conditioning): no historical pipeline snapshots exist.",
+    notes = [f"Trend basis: {anchor_basis.replace('_', ' ')}"
+             + (" (at each origin, the long-run CAGRs from the start of the data to that origin)." if anchor_basis == "long_run_cagr" else "."),
+             "Supply is realised supply (conditioning): no historical pipeline snapshots exist.",
              "Drivers cannot be backtested point in time; this tests the baseline engine only.",
              ("ADR in CPI mode: inflation at each origin is forecast naively (last observed rate decaying to 2%, "
               "half-life one year, sd 1 point), so the backtest does not see future inflation.") if cpi else
@@ -175,9 +188,11 @@ def run_backtest(monthly_spliced: pd.DataFrame, sample: pd.DataFrame, annual_his
                                      crps_demand=("crps", lambda s: s[base.loc[s.index, "measure"] == "demand_growth"].mean()))
     vt = vt.reset_index()
     # Residual type: by demand CRPS within the default COVID treatment. COVID treatment: by overall CRPS.
-    ex = vt[vt["variant"].str.startswith("ex_covid")]
+    vt["basis"] = np.where(vt["variant"].str.count("/") >= 2, vt["variant"].str.split("/").str[-1], anchor_basis)
+    main = vt[vt["basis"] == anchor_basis]
+    ex = main[main["variant"].str.startswith("ex_covid")]
     best_resid = ex.sort_values("crps_demand").iloc[0]["variant"].split("/")[1]
-    covid_choice = vt[vt["variant"].str.endswith(best_resid)].sort_values("crps_all").iloc[0]["variant"]
+    covid_choice = main[main["variant"].str.endswith(best_resid)].sort_values("crps_all").iloc[0]["variant"]
     chosen = covid_choice
     if chosen.startswith("with_covid"):
         notes.append("The backtest favours including COVID years in estimation; that variant is used.")

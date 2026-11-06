@@ -55,6 +55,16 @@ class DemandModel:
     p_scale_moderate: float = 1.0     # user setting: multiplier on the moderate shock probability
     p_scale_severe: float = 1.0
 
+    def expected_shock_drag(self) -> float:
+        """Expected log growth lost to shocks per year (negative), from the shock probabilities and the
+        average total deviation of each class's historical profiles."""
+        drag = 0.0
+        for cls, scale in (("moderate", self.p_scale_moderate), ("severe", self.p_scale_severe)):
+            profs = [sum(p.deviations) for p in self.shock_profiles if p.cls == cls]
+            if profs:
+                drag += self.p_mean(cls) * scale * float(np.mean(profs))
+        return drag
+
     def p_mean(self, cls: str) -> float:
         a, b = self.p_moderate if cls == "moderate" else self.p_severe
         return a / (a + b)

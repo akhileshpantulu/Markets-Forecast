@@ -1,0 +1,13 @@
+{
+ "id": "eurostat_tour_occ_arm",
+ "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/tour_occ_arm?format=JSON&lang=EN&unit=NR&nace_r2=I551&geo=ES&geo=FR&geo=IT&geo=EL&geo=EU27_2020&lastTimePeriod=144",
+ "publisher": "Eurostat",
+ "title": "Arrivals at tourist accommodation establishments, monthly (hotels)",
+ "format": "jsonstat",
+ "fetched_at": "2026-11-06T12:10:45+00:00",
+ "http_status": 200,
+ "content_type": "application/json",
+ "bytes": 39152,
+ "sha256": "c69de20cba8144ee009a9d5571397165ddf6524d3dfe471254a2fe5db417fd3d",
+ "body_file": "eurostat_tour_occ_arm.body.json"
+}

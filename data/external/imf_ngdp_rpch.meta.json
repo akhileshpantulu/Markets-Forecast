@@ -1,0 +1,13 @@
+{
+ "id": "imf_ngdp_rpch",
+ "url": "https://www.imf.org/external/datamapper/api/v1/NGDP_RPCH/GBR/FRA/ESP/ITA/GRC/CAN/USA/DEU?periods=2015,2016,2017,2018,2019,2020,2021,2022,2023,2024,2025,2026,2027,2028,2029,2030,2031",
+ "publisher": "International Monetary Fund",
+ "title": "Real GDP growth, annual percent change (World Economic Outlook)",
+ "format": "imf_datamapper",
+ "fetched_at": "2026-11-06T12:10:52+00:00",
+ "http_status": 200,
+ "content_type": "application/json",
+ "bytes": 121784,
+ "sha256": "5200170b0f19f025e4e0a4e7685d8d5182e11068bff6ef4c92aea400739f0148",
+ "body_file": "imf_ngdp_rpch.body.json"
+}

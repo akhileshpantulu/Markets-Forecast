@@ -1,0 +1,106 @@
+{
+ "run_at": "2026-11-06T12:11:11+00:00",
+ "results": [
+  {
+   "id": "eurostat_tour_occ_nim",
+   "ok": true,
+   "bytes": 40056,
+   "fetched_at": "2026-11-06T12:10:44+00:00"
+  },
+  {
+   "id": "eurostat_tour_occ_arm",
+   "ok": true,
+   "bytes": 39152,
+   "fetched_at": "2026-11-06T12:10:45+00:00"
+  },
+  {
+   "id": "eurostat_tour_occ_mnor",
+   "ok": false,
+   "error": "HTTPError 400: { \"error\": [{\"status\": 400,\"id\": 150,\"label\": \"INVALID_QUERY_DIMENSION: Query is invalid as per its structure's definition. Dimension \\\"NACE_R2\\\" is not defined\"}]}"
+  },
+  {
+   "id": "eurostat_tour_occ_ninc",
+   "ok": true,
+   "bytes": 510191,
+   "fetched_at": "2026-11-06T12:10:47+00:00"
+  },
+  {
+   "id": "eurostat_tour_ce_oarc",
+   "ok": true,
+   "bytes": 182980,
+   "fetched_at": "2026-11-06T12:10:48+00:00"
+  },
+  {
+   "id": "eurostat_avia_paoa",
+   "ok": true,
+   "bytes": 6891,
+   "fetched_at": "2026-11-06T12:10:48+00:00"
+  },
+  {
+   "id": "eurostat_avia_paoc",
+   "ok": true,
+   "bytes": 6629,
+   "fetched_at": "2026-11-06T12:10:48+00:00"
+  },
+  {
+   "id": "eurostat_avia_paoac",
+   "ok": true,
+   "bytes": 57115,
+   "fetched_at": "2026-11-06T12:10:49+00:00"
+  },
+  {
+   "id": "eurostat_prc_hicp_minr_cp112",
+   "ok": true,
+   "bytes": 17122,
+   "fetched_at": "2026-11-06T12:10:49+00:00"
+  },
+  {
+   "id": "imf_ngdp_rpch",
+   "ok": true,
+   "bytes": 121784,
+   "fetched_at": "2026-11-06T12:10:52+00:00"
+  },
+  {
+   "id": "imf_pcpipch",
+   "ok": true,
+   "bytes": 121340,
+   "fetched_at": "2026-11-06T12:10:53+00:00"
+  },
+  {
+   "id": "imf_pcpipch_long",
+   "ok": true,
+   "bytes": 121340,
+   "fetched_at": "2026-11-06T12:10:53+00:00"
+  },
+  {
+   "id": "imf_indicators",
+   "ok": true,
+   "bytes": 48417,
+   "fetched_at": "2026-11-06T12:10:53+00:00"
+  },
+  {
+   "id": "ecb_exr_monthly",
+   "ok": true,
+   "bytes": 269148,
+   "fetched_at": "2026-11-06T12:10:55+00:00"
+  },
+  {
+   "id": "ine_2058",
+   "ok": true,
+   "bytes": 439345,
+   "fetched_at": "2026-11-06T12:10:58+00:00"
+  },
+  {
+   "id": "ine_2059",
+   "ok": true,
+   "bytes": 2024566,
+   "fetched_at": "2026-11-06T12:11:05+00:00"
+  },
+  {
+   "id": "ine_46298",
+   "ok": true,
+   "bytes": 1889307,
+   "fetched_at": "2026-11-06T12:11:11+00:00"
+  }
+ ]
+}

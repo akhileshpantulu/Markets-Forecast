@@ -1,0 +1,13 @@
+{
+ "id": "ine_46298",
+ "url": "https://servicios.ine.es/wstempus/js/es/DATOS_TABLA/46298?tip=AM",
+ "publisher": "Instituto Nacional de Estadistica (Spain)",
+ "title": "INE Tempus table 46298",
+ "format": "ine_json",
+ "fetched_at": "2026-11-06T12:11:11+00:00",
+ "http_status": 200,
+ "content_type": "application/json;charset=UTF-8",
+ "bytes": 1889307,
+ "sha256": "34d5df1dccb9d556116aa66bd9ba04b0621ffbd67eacd31a179559b62aa038c3",
+ "body_file": "ine_46298.body.json"
+}

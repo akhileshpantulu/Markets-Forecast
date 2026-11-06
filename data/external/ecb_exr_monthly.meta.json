@@ -1,0 +1,13 @@
+{
+ "id": "ecb_exr_monthly",
+ "url": "https://data-api.ecb.europa.eu/service/data/EXR/M.USD+GBP+CAD+CHF+CNY+JPY.EUR.SP00.A?format=csvdata&startPeriod=2010-01",
+ "publisher": "European Central Bank",
+ "title": "Euro reference exchange rates, monthly average (USD, GBP, CAD, CHF, CNY, JPY)",
+ "format": "ecb_csv",
+ "fetched_at": "2026-11-06T12:10:55+00:00",
+ "http_status": 200,
+ "content_type": "text/csv",
+ "bytes": 269148,
+ "sha256": "0c193c494706fbdf917c3c281abacf15a33360b24449c5d987fcb7e87ba29f06",
+ "body_file": "ecb_exr_monthly.body.txt"
+}

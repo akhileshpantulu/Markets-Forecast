@@ -1,0 +1,13 @@
+{
+ "id": "eurostat_tour_occ_ninc",
+ "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/tour_occ_ninc?format=JSON&lang=EN&lastTimePeriod=5",
+ "publisher": "Eurostat",
+ "title": "Nights spent at tourist accommodation establishments by country of residence of the tourist",
+ "format": "jsonstat",
+ "fetched_at": "2026-11-06T12:10:47+00:00",
+ "http_status": 200,
+ "content_type": "application/json",
+ "bytes": 510191,
+ "sha256": "05c9544052cd9a85efea7415f480d811b442c1c6a7e00739895050f1a5bacc41",
+ "body_file": "eurostat_tour_occ_ninc.body.json"
+}

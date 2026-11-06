@@ -1,0 +1,13 @@
+{
+ "id": "eurostat_avia_paoa",
+ "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/avia_paoa?format=JSON&lang=EN&freq=M&unit=PAS&tra_meas=PAS_CRD&tra_cov=TOTAL&schedule=TOT&rep_airp=ES_LEMD&rep_airp=ES_LEBL&rep_airp=ES_LEPA&rep_airp=FR_LFPG&rep_airp=FR_LFPO&rep_airp=IT_LIRF&rep_airp=IT_LIMC&rep_airp=EL_LGAV&lastTimePeriod=144",
+ "publisher": "Eurostat",
+ "title": "Air passenger transport by reporting airport, monthly (passengers carried), incl. Paris CDG (FR_LFPG) and Orly (FR_LFPO)",
+ "format": "jsonstat",
+ "fetched_at": "2026-11-06T12:10:48+00:00",
+ "http_status": 200,
+ "content_type": "application/json",
+ "bytes": 6891,
+ "sha256": "84f359eb1f52d841d486b5aaa7743ac114e7382eeec6d92aeac26c170ec5e863",
+ "body_file": "eurostat_avia_paoa.body.json"
+}

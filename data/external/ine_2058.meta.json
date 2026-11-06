@@ -1,0 +1,13 @@
+{
+ "id": "ine_2058",
+ "url": "https://servicios.ine.es/wstempus/js/es/DATOS_TABLA/2058?tip=AM",
+ "publisher": "Instituto Nacional de Estadistica (Spain)",
+ "title": "INE Tempus table 2058 (hotel occupancy survey)",
+ "format": "ine_json",
+ "fetched_at": "2026-11-06T12:10:58+00:00",
+ "http_status": 200,
+ "content_type": "application/json;charset=UTF-8",
+ "bytes": 439345,
+ "sha256": "b0881d290a19f264a8c87d04b821c18cf3131460f0ffaf89f45e85076f93fa90",
+ "body_file": "ine_2058.body.json"
+}

@@ -1,0 +1,13 @@
+{
+ "id": "eurostat_tour_occ_nim",
+ "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/tour_occ_nim?format=JSON&lang=EN&unit=NR&nace_r2=I551&geo=ES&geo=FR&geo=IT&geo=EL&geo=EU27_2020&lastTimePeriod=144",
+ "publisher": "Eurostat",
+ "title": "Nights spent at tourist accommodation establishments, monthly (hotels, NACE I55.1)",
+ "format": "jsonstat",
+ "fetched_at": "2026-11-06T12:10:44+00:00",
+ "http_status": 200,
+ "content_type": "application/json",
+ "bytes": 40056,
+ "sha256": "ce323df0b30de70521119f211342edd161f9160cdc2008b74e20e00b65ecfff7",
+ "body_file": "eurostat_tour_occ_nim.body.json"
+}

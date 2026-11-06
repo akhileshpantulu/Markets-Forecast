@@ -1,0 +1,13 @@
+{
+ "id": "imf_indicators",
+ "url": "https://www.imf.org/external/datamapper/api/v1/indicators",
+ "publisher": "International Monetary Fund",
+ "title": "DataMapper indicator catalogue",
+ "format": "json",
+ "fetched_at": "2026-11-06T12:10:53+00:00",
+ "http_status": 200,
+ "content_type": "application/json",
+ "bytes": 48417,
+ "sha256": "30d77f9f74ca8c2777193db842876398688dad62f846e76fbdf4d49899e48d62",
+ "body_file": "imf_indicators.body.json"
+}

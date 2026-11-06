@@ -1,0 +1,13 @@
+{
+ "id": "eurostat_avia_paoac",
+ "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/avia_paoac?format=JSON&lang=EN&freq=M&rep_airp=ES_LEMD&lastTimePeriod=24",
+ "publisher": "Eurostat",
+ "title": "Air passenger transport between reporting airport and partner airports, monthly (Madrid Barajas)",
+ "format": "jsonstat",
+ "fetched_at": "2026-11-06T12:10:49+00:00",
+ "http_status": 200,
+ "content_type": "application/json",
+ "bytes": 57115,
+ "sha256": "e085e6571af2eb4ed7d7f9e6342d9a7ed7c47e1c84d2a0a4cb8f14f7dbc6ffe0",
+ "body_file": "eurostat_avia_paoac.body.json"
+}

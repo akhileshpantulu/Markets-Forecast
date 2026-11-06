@@ -1,0 +1,13 @@
+{
+ "id": "imf_pcpipch",
+ "url": "https://www.imf.org/external/datamapper/api/v1/PCPIPCH/GBR/FRA/ESP/ITA/GRC/CAN/USA/DEU?periods=2015,2016,2017,2018,2019,2020,2021,2022,2023,2024,2025,2026,2027,2028,2029,2030,2031",
+ "publisher": "International Monetary Fund",
+ "title": "Inflation, average consumer prices, annual percent change (World Economic Outlook)",
+ "format": "imf_datamapper",
+ "fetched_at": "2026-11-06T12:10:53+00:00",
+ "http_status": 200,
+ "content_type": "application/json",
+ "bytes": 121340,
+ "sha256": "e36fb78dc58c5b50df615add2656469d316fe0c11416559b473de78d56b9aa1d",
+ "body_file": "imf_pcpipch.body.json"
+}

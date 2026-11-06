@@ -1,0 +1,13 @@
+{
+ "id": "eurostat_prc_hicp_minr_cp112",
+ "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/prc_hicp_minr?format=JSON&lang=EN&unit=RCH_A&coicop18=CP112&geo=ES&geo=FR&geo=IT&geo=EL&geo=EA&lastTimePeriod=144",
+ "publisher": "Eurostat",
+ "title": "HICP accommodation services (COICOP CP112), monthly annual rate of change",
+ "format": "jsonstat",
+ "fetched_at": "2026-11-06T12:10:49+00:00",
+ "http_status": 200,
+ "content_type": "application/json",
+ "bytes": 17122,
+ "sha256": "be0cc0c2c9d442f8a2efa8dc8ffe1a676d29abd9de5ff49a3040c07de3e028cd",
+ "body_file": "eurostat_prc_hicp_minr_cp112.body.json"
+}

@@ -1,0 +1,13 @@
+{
+ "id": "eurostat_avia_paoc",
+ "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/avia_paoc?format=JSON&lang=EN&freq=M&unit=PAS&tra_meas=PAS_CRD&schedule=TOT&tra_cov=TOTAL&tra_cov=INTL_XEU27_2020&geo=ES&geo=FR&geo=IT&geo=EL&lastTimePeriod=144",
+ "publisher": "Eurostat",
+ "title": "Air passenger transport by reporting country, monthly (total and extra-EU)",
+ "format": "jsonstat",
+ "fetched_at": "2026-11-06T12:10:48+00:00",
+ "http_status": 200,
+ "content_type": "application/json",
+ "bytes": 6629,
+ "sha256": "92bd5dcaebcd449646d1130a9332d3c8fb478c6da10f61f1a64b26d599a77bba",
+ "body_file": "eurostat_avia_paoc.body.json"
+}

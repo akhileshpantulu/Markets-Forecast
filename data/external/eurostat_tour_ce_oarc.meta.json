@@ -1,0 +1,13 @@
+{
+ "id": "eurostat_tour_ce_oarc",
+ "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/tour_ce_oarc?format=JSON&lang=EN&lastTimePeriod=5",
+ "publisher": "Eurostat",
+ "title": "tour_ce_oarc (as supplied by the user)",
+ "format": "jsonstat",
+ "fetched_at": "2026-11-06T12:10:48+00:00",
+ "http_status": 200,
+ "content_type": "application/json",
+ "bytes": 182980,
+ "sha256": "6435caf27708069e4b79366b93dba91b967f9cf63015598d674665eaea089d18",
+ "body_file": "eurostat_tour_ce_oarc.body.json"
+}

@@ -1,0 +1,53 @@
+# Deploys the drag-and-drop page to GitHub Pages.
+# The site holds code only. Files dropped on it are processed in the visitor's
+# browser and never uploaded. The data-leak check below fails the deploy if a
+# data file or run output ever ends up in the build.
+name: deploy-web
+
+on:
+  push:
+    branches: [main]
+    paths: ["web/**", "engine/**", "config/**", "data/mappings/**", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Confirm the site is client-side only
+        run: |
+          grep -Eq '^frontend_mode: client_side_only' config/hosting.yaml
+          grep -Eq '^deploy_may_include_run_data: false' config/hosting.yaml
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+        working-directory: web
+      - name: Build site and single-file app (includes the data-leak check)
+        run: npm run build:all
+        working-directory: web
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

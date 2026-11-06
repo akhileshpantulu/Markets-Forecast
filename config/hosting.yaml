@@ -6,10 +6,16 @@ repo_private: false                   # verified 2026-11-06 via search/repositor
 repo_private_checked: 2026-11-06
 pages_private: false                  # private Pages requires an Enterprise Cloud organization
 
-# Frontend delivery decided with the user on 2026-11-06:
+# Frontend delivery decided with the user on 2026-11-06 (replaces the private-Pages
+# rule in BUILD_PROMPT.md section 10 for this repository):
 # a static page (GitHub Pages or Vercel) where files are dropped in and the
 # engine runs entirely in the browser through Pyodide. The deployed bundle holds
 # code only: no CoStar rows, no run outputs. Dropped files never leave the
 # browser. report.html per run works the same way offline.
 frontend_mode: client_side_only
 deploy_may_include_run_data: false
+
+# Targets: GitHub Pages (.github/workflows/pages.yml, deploys from main) or
+# Vercel (web/vercel.json, root directory "web"). Both serve web/dist, which
+# also contains forecast-app.html, the single-file version for local use.
+# The Python runtime (Pyodide 314.0.7) loads from cdn.jsdelivr.net.

@@ -1,49 +1,81 @@
 # Hotel Market Forecast
 
-This tool forecasts occupancy, ADR and RevPAR growth for a hotel market. It covers the current year plus five full years. Each forecast comes with probability ranges and named scenarios, and it is built from CoStar exports.
+This tool forecasts occupancy, ADR and RevPAR growth for a hotel market. It covers the current year plus five full years, with probability ranges and named scenarios, and it works from CoStar exports.
 
-The build is in progress. Phase A covers loading and checking data, and it works now. The forecasting engine, the research agents and the web page are added in later phases.
+The build is in progress. What works today:
 
-## Important: the repository is public
+- loading and checking the data
+- finding anomalies in the history, such as series breaks
+- a drag-and-drop web page
 
-At the moment, CoStar data must not be uploaded to this repository. CoStar data is licensed, and anyone can read a public repository. To make the repository private:
+The forecasting engine, the research agents and the forecast views are added in later phases.
 
-1. Open the repository on GitHub.
-2. Go to Settings, then General, then Danger Zone.
-3. Choose Change visibility, then Private.
+## The drag-and-drop page
 
-Then tell Claude, which will update `config/hosting.yaml` and remove the upload block.
+You drop your CoStar files onto the page, and the Python engine runs inside your browser. **Nothing is uploaded.** The page itself contains code only and no data, so it can be hosted publicly without exposing licensed CoStar data.
 
-The web page that is still to be built does not need the data to be in the repository. You drop files onto the page and they are processed inside your browser. Nothing is uploaded.
+Upload slots:
 
-## How to upload data (once the repository is private)
+| Slot | File | Status |
+| --- | --- | --- |
+| Market performance | CoStar DataTable export (monthly) | Working |
+| Pipeline | CoStar property export of pipeline hotels | Working |
+| Airline and airport data | To be defined from your example | Coming next |
+| Country performance | Country-level DataTable export | Coming next |
 
-Put files in `inbox/<market-slug>/` using the GitHub web interface (Add file, then Upload files):
+After you click Run, the page shows:
 
-| Folder | What goes there |
-| --- | --- |
-| `performance/` | The CoStar DataTable export (monthly performance) |
-| `pipeline/` | The CoStar property export of pipeline hotels (under construction, renovation, proposed) |
-| `reference/` | A country or regional DataTable export in the same format, used for comparison |
-| `optional/` | Airport statistics, an events list, and `notes.txt` with anything Claude should know about the market |
+- annual and monthly history charts, plus the annual table
+- every validation check
+- the guardrails: series breaks, which years the model may fit on, and the influence check
+- the pipeline
+- the column mapping
+- the full report, which you can download
 
-Keep the file names that CoStar gives them, because the export date in the name is used as the snapshot date.
+### Option 1: GitHub Pages (free, from this repository)
 
-## How to check the data
+1. Merge the working branch into `main`.
+2. On GitHub, open the repository's **Settings > Pages**. Under **Build and deployment**, set **Source** to **GitHub Actions**.
+3. Pushes to `main` that touch the web page or the engine now publish the site automatically through `.github/workflows/pages.yml`. You can also start it by hand from **Actions > deploy-web > Run workflow**.
+4. The page will be at `https://akhileshpantulu.github.io/Markets-Forecast/`.
 
-Run `python -m engine.ingest paris-louvre-marais`. It writes `runs/<market>/<run_id>/validation.md`, which contains:
+### Option 2: Vercel
 
-- which source column fed which field
-- every check, with its result (pass, warning or FAIL)
-- an annual summary
-- the pipeline as it was read
-- the assumptions made
+1. Sign in at vercel.com with GitHub and choose **Add New > Project**, then import this repository.
+2. Set **Root Directory** to `web`. The build settings come from `web/vercel.json`, so leave the rest as they are.
+3. Deploy. Every push redeploys. Pushes to branches other than `main` get their own preview URLs.
 
-A FAIL stops the run, and the uploaded files stay in `inbox/` so you can fix them and try again.
+### Option 3: a single file on your computer
 
-## Markets configured
+The hosted site also serves `forecast-app.html`, the whole app in one file. Download it from `<your site>/forecast-app.html` and open it in Chrome or Edge.
 
-- `paris-louvre-marais`: Paris, Louvre/Marais submarket, EUR, calendar year.
+- It needs an internet connection the first time it loads the Python runtime from the jsDelivr CDN.
+- Your files are still processed only on your machine.
+
+To build it yourself, run `cd web && npm ci && npm run build:all`. The file appears at `web/dist/forecast-app.html`.
+
+## The repository is public
+
+Do not commit CoStar files here. The drag-and-drop page does not need them in the repository. If you want the automated GitHub pipeline later (upload to `inbox/` and get a forecast pull request), make the repository private first: **Settings > General > Danger Zone > Change visibility**.
+
+## Data checks and guardrails
+
+Each run writes a validation report covering:
+
+- **Column mapping:** which source column feeds which field.
+- **Identities:** occupancy = demand ÷ supply, ADR = revenue ÷ demand, and RevPAR = occupancy × ADR.
+- **Continuity:** no missing or duplicate months.
+- **Reconciliation:** the monthly values match CoStar's own 12-month and year-over-year columns.
+- **Closures:** temporary closures, reconciled with the pipeline.
+- **Outliers.**
+
+The guardrails decide what history the model may learn from:
+
+- **Series breaks.** A step that hits all twelve months of a year in the same direction and does not reverse usually means the CoStar sample or definitions changed. One example is ADR in 1999 for Paris, Louvre/Marais. Growth that contains a break is left out of model fitting, and earlier levels are rescaled so ranges compare like with like. A step too recent to confirm is flagged for review, not removed.
+- **COVID years** (2020 to 2022) are left out by default. The model is also run with them included, as a sensitivity check.
+- **Influence check.** Each year is left out in turn. Any single year that moves the fitted average far more than a typical year does is flagged, and the model is fitted with and without it.
+
+To keep a detected break in the data, add it under `estimation.series_breaks` in the market file in `config/markets/` with `action: keep`.
 
 ## For developers
 
@@ -61,6 +93,10 @@ pip install -r requirements.txt
 
 ```bash
 python -m pytest
+```
+
+```bash
+cd web && npm ci && npm run build:all
 ```
 
 See `CLAUDE.md` for the working rules and `BUILD_PROMPT.md` for the full specification.

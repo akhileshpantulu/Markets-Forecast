@@ -19,3 +19,24 @@ jobs:
       - run: pip install -r requirements.txt
       - name: Tests (includes the licensed-data guard)
         run: python -m pytest
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+        working-directory: web
+      - name: Build (typecheck, site, single file, data-leak check)
+        run: npm run build:all
+        working-directory: web
+      - name: Browser end-to-end test (Pyodide from the CDN)
+        working-directory: web
+        run: |
+          npm install --no-save playwright@1.63.0
+          npx playwright install --with-deps chromium
+          node tests/e2e.mjs

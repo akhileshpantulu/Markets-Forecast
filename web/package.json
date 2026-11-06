@@ -1,0 +1,24 @@
+{
+  "name": "hotel-market-forecast-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit && vite build && node scripts/check-dist.mjs dist",
+    "build:single": "vite build --mode single && node scripts/check-dist.mjs dist-single",
+    "build:all": "npm run build && npm run build:single && node scripts/bundle-single.mjs",
+    "preview": "vite preview --port 4173 --strictPort",
+    "e2e": "node tests/e2e.mjs"
+  },
+  "dependencies": {
+    "echarts": "6.1.0"
+  },
+  "devDependencies": {
+    "pyodide": "314.0.7",
+    "typescript": "6.0.3",
+    "vite": "7.3.7",
+    "vite-plugin-singlefile": "2.3.4"
+  }
+}

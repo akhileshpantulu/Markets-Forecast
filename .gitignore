@@ -32,3 +32,4 @@ data/processed/**
 !data/processed/.gitkeep
 runs/**
 !runs/.gitkeep
+web/dist-single/

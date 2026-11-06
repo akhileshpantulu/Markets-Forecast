@@ -253,36 +253,16 @@ def _unit_consistency(perf: pd.DataFrame, cfg: MarketConfig) -> Check:
                   [f"{y}: ratio {v:.2f}" for y, v in bad.items()])
 
 
-BREAK_MEDIAN_YOY = 0.25
-
-
 def _level_breaks(perf: pd.DataFrame, cfg: MarketConfig) -> Check:
-    """Flag calendar years where nearly every month moves the same large amount.
-
-    A one-off step in all twelve months (rather than a gradual trend or a shock
-    that fades) usually means a change in sample, definition or unit. Years in
-    the configured COVID window are excluded.
-    """
-    s = perf.set_index("period_start")
-    covid = set(cfg.estimation.covid_years)
-    details = []
-    for measure in ("adr", "demand", "supply"):
-        prior = s[measure].copy()
-        prior.index = prior.index + pd.DateOffset(years=1)
-        yoy = (s[measure] / prior.reindex(s.index) - 1).dropna()
-        for year, g in yoy.groupby(yoy.index.year):
-            if year in covid or len(g) < 12:
-                continue
-            med = float(g.median())
-            same_sign = int((np.sign(g) == np.sign(med)).sum())
-            if abs(med) > BREAK_MEDIAN_YOY and same_sign >= 11:
-                details.append(f"{measure} {year}: median monthly YoY change {med:+.1%}, "
-                               f"{same_sign} of 12 months move the same way (min {g.min():+.1%}, max {g.max():+.1%})")
-    return _check("P18", "soft", not details, "Series level breaks",
-                  f"No non-COVID year shows a uniform step above {BREAK_MEDIAN_YOY:.0%} in ADR, demand or supply.",
-                  f"{len(details)} possible level breaks. Decide whether to exclude the affected growth "
-                  "observations from parameter estimation (set estimation.series_breaks in the market config).",
-                  details)
+    """Report persistent uniform steps (engine/history/anomalies.py)."""
+    from engine.history.anomalies import analyse_breaks, STEP_THRESHOLD
+    breaks = analyse_breaks(perf, cfg)
+    return _check("P18", "soft", not breaks, "Series level breaks",
+                  f"No persistent uniform step above {STEP_THRESHOLD:.0%} in ADR, demand or supply outside the COVID window.",
+                  f"{len(breaks)} level break(s) found. Growth observations containing a confirmed break are "
+                  "excluded from estimation automatically and pre-break levels are spliced; override with "
+                  "estimation.series_breaks in the market config.",
+                  [b.describe() for b in breaks])
 
 
 def validate_pipeline(pipe: pd.DataFrame, conversion_errors: list[str], perf: pd.DataFrame,

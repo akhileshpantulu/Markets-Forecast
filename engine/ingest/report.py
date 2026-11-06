@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 
+import numpy as np
 import pandas as pd
 
 from engine import __version__
@@ -23,6 +24,40 @@ def _s(x) -> str:
 
 def _num(x, d=0) -> str:
     return "" if pd.isna(x) else f"{x:,.{d}f}"
+
+
+def _guardrail_section(res: IngestResult) -> list[str]:
+    L = ["## Estimation guardrails", "",
+         "These rules decide which history the model may fit on. They run automatically on every upload.", ""]
+    if res.breaks:
+        L += ["**Level breaks**", ""] + [f"- {b.describe()}" + (f" {b.note}" if b.note else "") for b in res.breaks]
+        L += ["", "Levels before a confirmed break are rescaled by the step factor in "
+              "`performance_monthly_spliced` so historical ranges compare like with like. "
+              "Displayed history keeps the original values.", ""]
+    else:
+        L += ["No level breaks detected.", ""]
+    g = res.growth_sample
+    L += ["**Annual growth observations used for estimation**", "",
+          "| Year | Demand | Occupancy | ADR | Excluded because |", "| --- | --- | --- | --- | --- |"]
+    for r in g.itertuples():
+        def cell(m):
+            v = getattr(r, f"g_{m}")
+            mark = "" if getattr(r, f"use_{m}") else " (out)"
+            return "" if pd.isna(v) else f"{np.expm1(v) * 100:+.1f}%{mark}"
+        reasons = sorted({getattr(r, f"reason_{m}") for m in ("demand", "occupancy", "adr")} - {""})
+        L.append(f"| {r.year} | {cell('demand')} | {cell('occupancy')} | {cell('adr')} | {'; '.join(reasons)} |")
+    L += ["", "**Influence check** (leave-one-out, on the mean of usable growth)", ""]
+    any_flag = False
+    for m, inf in res.influence.items():
+        for f in inf.flagged:
+            any_flag = True
+            L.append(f"- {m}: {f}")
+    if not any_flag:
+        L.append("- No single year moves the mean more than 3 times as much as a typical year.")
+    else:
+        L += ["", "Flagged years stay in the sample. Phase B estimators fit with and without them and report both."]
+    L.append("")
+    return L
 
 
 def render_validation(res: IngestResult, cfg: MarketConfig, today: date | None = None) -> str:
@@ -83,6 +118,9 @@ def render_validation(res: IngestResult, cfg: MarketConfig, today: date | None =
                      f"{_num(r.adr, 1)} | {_num(r.revpar, 1)} | {_pct(r.occ_g)} | {_pct(r.adr_g)} |")
         L += ["", "Growth for a partial year compares a part year with a full year and is not meaningful; "
               "the stub-year engine handles it in Phase B.", ""]
+
+    if res.growth_sample is not None:
+        L += _guardrail_section(res)
 
     if res.pipeline is not None and not res.pipeline.empty:
         L += ["## Pipeline as read", "",

@@ -36,6 +36,10 @@ def write_outputs(res: IngestResult, cfg: MarketConfig, processed_dir: Path, run
         return run_dir / "validation.md"
     res.monthly.to_parquet(processed_dir / "performance_monthly.parquet", index=False)
     res.annual.to_parquet(processed_dir / "performance_annual.parquet", index=False)
+    if res.monthly_spliced is not None:
+        res.monthly_spliced.to_parquet(processed_dir / "performance_monthly_spliced.parquet", index=False)
+    if res.growth_sample is not None:
+        res.growth_sample.to_parquet(processed_dir / "growth_sample.parquet", index=False)
     if res.pipeline is not None:
         res.pipeline.to_parquet(processed_dir / "pipeline.parquet", index=False)
     if res.reference_monthly is not None:
@@ -47,6 +51,7 @@ def write_outputs(res: IngestResult, cfg: MarketConfig, processed_dir: Path, run
         "processed_on": today.isoformat(),
         "files": [{"category": f.category, "filename": f.filename, "sha256": f.sha256, "mapping": f.mapping,
                    "snapshot_date": f.snapshot_date.isoformat() if f.snapshot_date else None} for f in res.files],
+        "level_breaks": [b.to_dict() for b in res.breaks],
         "monthly_range": [res.monthly["period_start"].min().strftime("%Y-%m"),
                           res.monthly["period_start"].max().strftime("%Y-%m")],
     }

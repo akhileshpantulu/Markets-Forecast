@@ -24,6 +24,8 @@ from engine.ingest.mapping import (
 )
 from engine.ingest.reader import ReadError, RawTable, read_table
 from engine.ingest.validate import Check, validate_performance, validate_pipeline
+from engine.history.anomalies import LevelBreak, analyse_breaks, splice_levels
+from engine.history.sample import InfluenceResult, build_growth_sample, influence_check, mean_estimator, usable
 
 CATEGORIES = ("performance", "pipeline", "reference", "optional")
 
@@ -64,6 +66,10 @@ class IngestResult:
     notes_text: str | None
     run_id: str
     fatal: list[str] = field(default_factory=list)
+    breaks: list[LevelBreak] = field(default_factory=list)
+    monthly_spliced: pd.DataFrame | None = None
+    growth_sample: pd.DataFrame | None = None
+    influence: dict[str, InfluenceResult] = field(default_factory=dict)
 
     @property
     def passed(self) -> bool:
@@ -171,4 +177,18 @@ def ingest_files(files: list[InputFile], cfg: MarketConfig, mappings: list[Mappi
                                   else "user notes"))
 
     run_id = compute_run_id(files, mappings, today)
-    return IngestResult(cfg.slug, monthly, annual, pipeline, ref_m, ref_a, checks, reports, notes_text, run_id, fatal)
+    res = IngestResult(cfg.slug, monthly, annual, pipeline, ref_m, ref_a, checks, reports, notes_text, run_id, fatal)
+    if monthly is not None and not monthly.empty:
+        apply_guardrails(res, cfg)
+    return res
+
+
+def apply_guardrails(res: IngestResult, cfg: MarketConfig) -> None:
+    """Detect anomalies, build the estimation sample and run influence checks."""
+    res.breaks = analyse_breaks(res.monthly, cfg, res.reference_monthly)
+    res.monthly_spliced = splice_levels(res.monthly, res.breaks)
+    res.growth_sample = build_growth_sample(res.annual, res.breaks, cfg)
+    for m in ("demand", "occupancy", "adr"):
+        series = usable(res.growth_sample, m)
+        if len(series) >= 5:
+            res.influence[m] = influence_check(series, mean_estimator)

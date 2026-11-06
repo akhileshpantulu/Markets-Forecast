@@ -23,11 +23,12 @@ simulation:
 estimation:
   covid_years: [2020, 2021, 2022]     # estimated with and without; default excludes from mu and phi
   min_complete_years: 8
-  # Validation P18 found a uniform ADR step in every month of 1999 (median +53%).
-  # Proposed default: exclude the 1998 to 1999 ADR growth observation from
-  # estimation. Awaiting user confirmation.
-  series_breaks:
-    - {measure: adr, year: 1999, action: exclude_growth, decided_by: pending, note: "Uniform step in all 12 months; likely sample or definition change"}
+  # Level breaks are detected automatically (engine/history/anomalies.py).
+  # Confirmed breaks are excluded from growth estimation and pre-break levels are
+  # spliced. Entries here override that per break. The 1999 ADR step (+53% in
+  # every month of 1999, no reversal in 2000) is handled by the automatic rule,
+  # which the user approved on 2026-11-06.
+  series_breaks: []
 
 ingest:
   # Months whose supply / (inventory x days) falls below this ratio are reported

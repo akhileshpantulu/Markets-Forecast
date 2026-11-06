@@ -105,7 +105,7 @@ def test_level_break_detected(perf_raw, mappings, synth_cfg):
             row[iv] *= 1.5
     c = _run(raw, mappings, synth_cfg)["P18"]
     assert c.status == "warn"
-    assert any(d.startswith("adr 2012") for d in c.details)
+    assert any(d.startswith("adr step") and "starting 2012-01" in d for d in c.details)
 
 
 def test_missing_mapped_column_stops(perf_raw, mappings):

@@ -4,7 +4,7 @@
  "publisher": "Eurostat",
  "title": "Arrivals at tourist accommodation establishments, monthly (hotels)",
  "format": "jsonstat",
- "fetched_at": "2026-11-06T12:10:45+00:00",
+ "fetched_at": "2026-11-06T12:14:20+00:00",
  "http_status": 200,
  "content_type": "application/json",
  "bytes": 39152,

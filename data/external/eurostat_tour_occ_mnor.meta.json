@@ -1,0 +1,13 @@
+{
+ "id": "eurostat_tour_occ_mnor",
+ "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/tour_occ_mnor?format=JSON&lang=EN&geo=ES&geo=FR&geo=IT&geo=EL&geo=EU27_2020&lastTimePeriod=144",
+ "publisher": "Eurostat",
+ "title": "Net occupancy rate of bed-places and bedrooms, monthly (hotels)",
+ "format": "jsonstat",
+ "fetched_at": "2026-11-06T12:14:21+00:00",
+ "http_status": 200,
+ "content_type": "application/json",
+ "bytes": 23468,
+ "sha256": "ea9b7c3f0c6a6ea1a1c3393ab3914bd8c8e45ef766b13c468ff55bb4144f1769",
+ "body_file": "eurostat_tour_occ_mnor.body.json"
+}

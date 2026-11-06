@@ -168,3 +168,17 @@ def test_anchor_window_rules():
     assert anchor_window(yrs, 2021, cov, 2019, 6) == (2013, 2019)        # rolling window, COVID end moved back
     assert anchor_window(yrs, 2025, cov, 2021, 4) == (2019, 2025)          # start inside COVID, window widened back
     assert anchor_window(yrs, 2008, cov, None, None) == (2006, 2008)
+
+
+
+def test_anchor_skips_years_touched_by_a_break():
+    from engine.history.anchor import anchor_window, first_clean_year
+
+    class B:
+        def __init__(self, start, action="exclude_growth"):
+            self.start, self.action = pd.Timestamp(start), action
+    assert first_clean_year([B("2006-06-01")]) == 2007
+    assert first_clean_year([B("1999-01-01")]) == 1999
+    assert first_clean_year([B("2006-06-01", "keep")]) is None
+    yrs = list(range(2006, 2026))
+    assert anchor_window(yrs, 2025, {2020, 2021, 2022}, None, None, 2007) == (2007, 2025)

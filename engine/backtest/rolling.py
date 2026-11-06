@@ -90,7 +90,7 @@ def naive_cpi_path(cpi: dict[int, float], origin: int, H: int, n: int, rng: np.r
 def run_backtest(monthly_spliced: pd.DataFrame, sample: pd.DataFrame, annual_hist: pd.DataFrame, cfg: MarketConfig,
                  priors: dict, seed: int, n_paths: int | None = None, max_h: int = 5,
                  cpi: dict[int, float] | None = None, anchor_basis: str = "long_run_cagr",
-                 anchor_start: int | None = None) -> BacktestResult:
+                 anchor_start: int | None = None, anchor_min_start: int | None = None) -> BacktestResult:
     pb = priors["backtest"]
     n_paths = n_paths or pb["paths"]
     lv = _annual_levels(monthly_spliced)
@@ -117,7 +117,7 @@ def run_backtest(monthly_spliced: pd.DataFrame, sample: pd.DataFrame, annual_his
                 cpi_T = {y: v for y, v in cpi.items() if y <= T} if cpi else None
                 am = fit_adr(a_T, dm, s_T, priors, cpi_T)
                 if (basis or anchor_basis) == "long_run_cagr":
-                    win = anchor_window(list(a_T["year"]), T, covid, anchor_start, live_len)
+                    win = anchor_window(list(a_T["year"]), T, covid, anchor_start, live_len, anchor_min_start)
                     anc = compute_anchor(a_T, win[0], win[1], cpi_T) if win else None
                     if anc is not None:
                         apply_anchor(dm, am, anc, am.mode == "cpi")

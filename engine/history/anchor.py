@@ -83,15 +83,23 @@ def apply_anchor(dm, am, anchor: Anchor, cpi_mode: bool) -> dict:
 MIN_WINDOW = 5
 
 
+def first_clean_year(breaks) -> int | None:
+    """First calendar year whose levels need no splice: the year after the last confirmed break began
+    (the same year when the break began in January)."""
+    ys = [b.start.year + (0 if b.start.month == 1 else 1) for b in (breaks or []) if b.action == "exclude_growth"]
+    return max(ys) if ys else None
+
+
 def anchor_window(available_years: list[int], end: int, covid_years: set[int], start_year: int | None,
-                  live_length: int | None) -> tuple[int, int] | None:
+                  live_length: int | None, min_start: int | None = None) -> tuple[int, int] | None:
     """Choose (start, end) for an anchor ending at or before `end`.
 
-    The end moves back to the latest non-COVID year. With a user start year, the window keeps the live
+    Years before min_start (levels touched by a data break) are never used as endpoints, so a splice
+    correction cannot move the CAGR. The end moves back to the latest non-COVID year. With a user start year, the window keeps the live
     window's length (a rolling window), so a backtest origin never gets a one-year window. The start
     moves forward out of COVID years. Windows are at least MIN_WINDOW years when the data allow.
     """
-    yrs = sorted(y for y in available_years if y <= end and y not in covid_years)
+    yrs = sorted(y for y in available_years if y <= end and y not in covid_years and (min_start is None or y >= min_start))
     if len(yrs) < 2:
         return None
     e = yrs[-1]

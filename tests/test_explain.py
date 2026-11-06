@@ -182,3 +182,16 @@ def test_anchor_skips_years_touched_by_a_break():
     assert first_clean_year([B("2006-06-01", "keep")]) is None
     yrs = list(range(2006, 2026))
     assert anchor_window(yrs, 2025, {2020, 2021, 2022}, None, None, 2007) == (2007, 2025)
+
+
+def test_year_stories_cover_every_year(grow):
+    out = run(grow)
+    st = out["explanation"]["years"]
+    assert [s["year"] for s in st] == [r["year"] for r in out["summary"]]
+    for s, r in zip(st, out["summary"]):
+        assert f"{r['revpar_growth']['p50'] * 100:+.1f}%" in s["headline"]
+        assert s["lines"]
+    later = st[2]["lines"]
+    assert any(l.startswith("Occupancy") for l in later) and any(l.startswith("ADR") for l in later)
+    assert any("long-run RevPAR growth" in l for l in later)
+    assert "—" not in " ".join(l for s in st for l in s["lines"])          # no em dashes in generated prose

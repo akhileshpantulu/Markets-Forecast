@@ -771,13 +771,24 @@ function driversEditor(p: HTMLElement, f: Forecast) {
 function whyView(p: HTMLElement, f: Forecast) {
   const e = f.explanation!;
   const bp = (v: number | null | undefined) => (v === null || v === undefined || !Number.isFinite(v) ? "" : `${v >= 0 ? "+" : ""}${(v * 100).toFixed(1)}`);
-  p.append(h("h2", {}, "Why the forecast sits here"));
-  if (e.flags.length) {
-    p.append(h("div", { class: "flags" }, e.flags.map((fl) => h("div", { class: "flag" }, badge("warn", "Check"), " ", fl.text))));
-  } else {
-    p.append(h("p", { class: "note" }, "No plausibility flags: each year's P50 sits inside the market's historical range, occupancy stays below the ceiling, and supply keeps pace with its history."));
+  p.append(h("h2", {}, "Why the forecast sits where it does"));
+  p.append(h("h3", { style: "margin-top:8px" }, "What the baseline assumes"), h("ul", {}, e.drivers.map((d) => h("li", {}, d))));
+  p.append(h("h3", { style: "margin-top:12px" }, "Year by year"));
+  for (const st of (e as any).years ?? []) {
+    p.append(h("div", { class: "year-story" },
+      h("div", { class: "year-head" }, h("b", {}, `${st.year} ${st.label}`), " ", st.headline),
+      h("ul", {}, st.lines.map((x: string) => h("li", {}, x))),
+      st.flags?.length ? h("div", { class: "flags" }, st.flags.map((t: string) => h("div", { class: "flag" }, badge("warn", "Check"), " ", t))) : null));
   }
-  p.append(h("h3", { style: "margin-top:12px" }, "What drives it"), h("ul", {}, e.drivers.map((d) => h("li", {}, d))));
+  const general = e.flags.filter((fl) => !fl.year);
+  if (general.length) p.append(h("h3", { style: "margin-top:12px" }, "Plausibility checks"),
+    h("div", { class: "flags" }, general.map((fl) => h("div", { class: "flag" }, badge("warn", "Check"), " ", fl.text))));
+  else if (!e.flags.length) p.append(h("p", { class: "note" }, "Plausibility checks: none raised. Each year's P50 sits inside the market's historical range."));
+  const c = e.cumulative_revpar;
+  if (c && c.history_n) {
+    p.append(h("p", {}, `Five years together, ${c.from_year} to ${c.to_year}: RevPAR P50 ${signedPct(c.forecast_p50)}, against ${signedPct(c.history_p10)} to ${signedPct(c.history_p90)} (P10 to P90) across the market's own ${c.history_n} five-year periods. `,
+      h("b", {}, `The forecast sits at the ${Math.round(c.percentile * 100)}th percentile.`)));
+  }
   if (e.reconciliation?.length) {
     const rec = e.reconciliation;
     const steps: [string, string, boolean?][] = [
@@ -786,36 +797,25 @@ function whyView(p: HTMLElement, f: Forecast) {
       ["Shocks against their average", "shocks_vs_average"], ["Momentum and carry-over", "momentum"], ["Drivers", "drivers"],
       ["Occupancy ceiling", "ceiling"], ["Trend adjustments (basis or yours)", "trend_adjustments"], ["Noise (mean)", "noise"],
       ["Forecast RevPAR growth (mean)", "total", true]];
-    p.append(h("h3", { style: "margin-top:12px" }, "From the long-run baseline to the forecast"),
-      h("p", { class: "note" }, "Mean RevPAR growth each year, starting from the market's long-run CAGR and adding each reason it differs. Points of log growth, about equal to percent; the rows add up exactly."),
+    p.append(h("details", { style: "margin-top:8px" }, h("summary", {}, "From the long-run baseline to the forecast (mean RevPAR growth, points)"),
       table(["Step", ...rec.map((r) => [String(r.year), "n"] as [string, string])],
-        steps.map(([label, k, bold]) => [bold ? h("b", {}, label) : label, ...rec.map((r) => bold ? h("b", {}, bp(r[k])) : bp(r[k]))])));
+        steps.map(([label, k, bold]) => [bold ? h("b", {}, label) : label, ...rec.map((r) => bold ? h("b", {}, bp(r[k])) : bp(r[k]))]))));
   }
-  const c = e.cumulative_revpar;
-  if (c && c.history_n) {
-    p.append(h("p", {}, `Cumulative RevPAR growth ${c.from_year} to ${c.to_year}: P50 ${signedPct(c.forecast_p50)} (P10 ${signedPct(c.forecast_p10)}, P90 ${signedPct(c.forecast_p90)}). `,
-      `The market's own ${c.history_n} five-year periods outside COVID ranged from ${signedPct(c.history_p10)} (P10) to ${signedPct(c.history_p90)} (P90), median ${signedPct(c.history_p50)}. `,
-      h("b", {}, `The forecast P50 sits at the ${Math.round(c.percentile * 100)}th percentile.`)));
-  }
-  p.append(h("h3", { style: "margin-top:12px" }, "Year by year"), h("ul", {}, e.per_year.map((y) => h("li", {}, y.text))));
   const years = e.bridge.map((b) => String(b.year));
   const rows: [string, (b: any) => number | null, boolean?][] = [
     ["Demand: trend", (b) => b.demand.trend], ["Demand: momentum", (b) => b.demand.momentum],
     ["Demand: expected shocks", (b) => b.demand.shocks], ["Demand: drivers", (b) => b.demand.drivers ?? 0],
-    ["Demand: new and reopened hotels", (b) => b.demand.new_hotels],
-    ["Demand: occupancy ceiling", (b) => b.demand.ceiling], ["Demand total", (b) => b.demand.total, true],
+    ["Demand: new and reopened hotels", (b) => b.demand.new_hotels], ["Demand: occupancy ceiling", (b) => b.demand.ceiling],
+    ["Demand total", (b) => b.demand.total, true],
     ["Supply: existing stock", (b) => b.supply.existing_level], ["Supply: removals", (b) => b.supply.removals],
     ["Supply: new builds", (b) => b.supply.new_builds], ["Supply: reopenings", (b) => b.supply.reopenings],
     ["Supply: unannounced", (b) => b.supply.unannounced], ["Supply: drivers", (b) => b.supply.drivers ?? 0],
-    ["Supply total", (b) => b.supply.total, true],
-    ["Occupancy (demand minus supply)", (b) => b.occupancy_total, true],
+    ["Supply total", (b) => b.supply.total, true], ["Occupancy (demand minus supply)", (b) => b.occupancy_total, true],
     ["ADR: inflation", (b) => b.adr.inflation], ["ADR: real drift", (b) => b.adr.real_drift],
     ["ADR: pricing power", (b) => b.adr.pricing_power], ["ADR: carry-over", (b) => b.adr.carry_over],
-    ["ADR: drivers", (b) => b.adr.drivers ?? 0],
-    ["ADR total", (b) => b.adr.total, true],
-    ["Occupancy, years without a shock", (b) => b.calm?.occ_total ?? null, true], ["ADR, years without a shock", (b) => b.calm?.adr_total ?? null, true],
+    ["ADR: drivers", (b) => b.adr.drivers ?? 0], ["ADR total", (b) => b.adr.total, true],
   ];
-  p.append(h("details", { style: "margin-top:8px" }, h("summary", {}, "Growth bridge: every component by year (points of growth)"),
+  p.append(h("details", { style: "margin-top:8px" }, h("summary", {}, "Growth bridge: every component by year (mean, points)"),
     table(["Component", ...years.map((y) => [y, "n"] as [string, string])],
       rows.map(([label, fn, bold]) => [bold ? h("b", {}, label) : label, ...e.bridge.map((b) => bold ? h("b", {}, bp(fn(b))) : bp(fn(b)))])),
     h("p", { class: "note" }, e.note)));

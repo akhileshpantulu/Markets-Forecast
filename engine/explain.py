@@ -76,7 +76,8 @@ def _windows(annual: pd.DataFrame, measure: str, flag: str, length: int = 5) -> 
 def build_explanation(paths: Paths, trace: dict, sp: SupplyPaths, dm: DemandModel, am: AdrModel, hist,
                       summary: list[dict], positions: list[dict], ceiling: float, hist_supply_growth: float | None,
                       cpi_path: dict | None, anchor=None, basis: str = "fitted_trend",
-                      supply_trend: float | None = None, shock_drag0: float | None = None) -> dict:
+                      supply_trend: float | None = None, shock_drag0: float | None = None,
+                      stub_ytd: dict | None = None, stub_info: dict | None = None) -> dict:
     years = paths.years
     tr = trace["years"]
     sup = _supply_split(sp, trace, years)
@@ -224,11 +225,134 @@ def build_explanation(paths: Paths, trace: dict, sp: SupplyPaths, dm: DemandMode
             text = (f"{b['year']}: occupancy {pct(r['occ_growth']['p50'])} and ADR {pct(r['adr_growth']['p50'])} at P50. "
                     f"Demand {pp(d['total'])} points against supply {pp(s_['total'])} points ({main_s}).")
         per_year.append({"year": b["year"], "text": text})
+    stories = year_stories(paths, summary, bridge, recon, flags, sp, anchor, cpi_path, stub_ytd, stub_info)
     return {"bridge": bridge, "flags": flags, "drivers": drivers, "per_year": per_year, "cumulative_revpar": cum,
-            "reconciliation": recon,
+            "reconciliation": recon, "years": stories,
             "historical_supply_growth": hist_supply_growth, "unannounced_rate": sp.unannounced_rate,
             "unannounced_by_year": {str(k): v for k, v in sp.unannounced_by_year.items()},
             "seasonal_index": sp.seasonal_index,
             "note": "The bridge splits the mean log growth (in points, about equal to percent) into components that add up "
                     "exactly. The mean includes rare shocks, which pull it below the median (P50). The rows for years "
                     "without a shock describe the typical path that the P50 reflects."}
+
+
+# ---------------------------------------------------------------------------
+# Year-by-year stories: plain-language explanation of why each year sits where it does.
+# Every number comes from the simulation output passed in.
+# ---------------------------------------------------------------------------
+
+RECON_LABELS = {
+    "supply_vs_trend": "supply growing {dir} its long-run trend",
+    "pricing_response": "the ADR response to occupancy",
+    "inflation_vs_history": "inflation {dir} its historical average",
+    "shocks_vs_average": "downturn risk {shockdir}",
+    "momentum": "momentum from the year before",
+    "drivers": "forward-looking drivers",
+    "ceiling": "the occupancy ceiling",
+    "trend_adjustments": "adjustments to the trend",
+}
+
+
+def _f(x, dp=1):
+    return f"{x * 100:+.{dp}f}%"
+
+
+def _pts(x, dp=1):
+    return f"{x * 100:+.{dp}f} points"
+
+
+def _openings(sp: SupplyPaths, year: int) -> list[str]:
+    from engine.supply.pipeline import annual_open_probabilities
+    if sp.projects is None or sp.projects.empty:
+        return []
+    probs = annual_open_probabilities(sp).set_index("project_id")
+    out = []
+    for r in sp.projects.itertuples():
+        if r.project_id not in probs.index:
+            continue
+        by = probs.loc[r.project_id]
+        p_now = float(by.get(str(year), 0.0)) - float(by.get(str(year - 1), 0.0))
+        if p_now >= 0.25 and r.rooms >= 0.005 * sp.base_rooms:
+            kind = "reopening of " if r.project_type == "renovation_reopening" else ""
+            out.append((r.rooms, f"{kind}{r.name} ({r.rooms:.0f} rooms, {p_now:.0%} chance of opening this year)"))
+    return [t for _, t in sorted(out, reverse=True)[:4]]
+
+
+def year_stories(paths: Paths, summary: list[dict], bridge: list[dict], recon: list[dict], flags: list[dict],
+                 sp: SupplyPaths, anchor, cpi_path: dict | None, stub_ytd: dict | None, stub_info: dict | None) -> list[dict]:
+    stories = []
+    # Stub year
+    r0 = summary[0]
+    if stub_ytd:
+        lines = [f"{stub_ytd['months']} months are actual. Year to date, occupancy moved {_f(stub_ytd['occ'])}, ADR "
+                 f"{_f(stub_ytd['adr'])} and RevPAR {_f(stub_ytd['revpar'])} against the same months last year."]
+        if stub_info:
+            lines.append(f"The remaining {12 - stub_ytd['months']} months follow last year's same months, moved by the recent "
+                         f"year-to-date trend (demand {_f(stub_info['trend_demand'])}, ADR {_f(stub_info['trend_adr'])}), "
+                         "with errors sized on how that rule did in past years.")
+        stories.append({"year": r0["year"], "label": r0["label"],
+                        "headline": f"RevPAR {_f(r0['revpar_growth']['p50'])}: occupancy {_f(r0['occ_growth']['p50'])}, "
+                                    f"ADR {_f(r0['adr_growth']['p50'])} (P50).",
+                        "lines": lines, "flags": []})
+    lr = anchor.log("revpar") if anchor is not None else None
+    for b, r, rc in zip(bridge, summary[1:], recon or [None] * len(bridge)):
+        y = b["year"]
+        c = b.get("calm") or {}
+        d, s, a = b["demand"], b["supply"], b["adr"]
+        dem = r["demand_growth"]["p50"]
+        sup = r["supply_growth"]["p50"]
+        # Occupancy
+        dparts = [f"trend {_pts(d['trend'])}"]
+        for key, label in (("demand_momentum", "momentum"), ("demand_new_hotels", "demand brought by new hotels"),
+                           ("demand_drivers", "drivers"), ("demand_ceiling", "occupancy ceiling")):
+            v = c.get(key, 0.0)
+            if abs(v) >= 0.001:
+                dparts.append(f"{label} {_pts(v)}")
+        sparts = []
+        named = _openings(sp, y)
+        if named:
+            sparts.append("openings: " + "; ".join(named))
+        if abs(s.get("unannounced", 0)) >= 0.001:
+            sparts.append(f"{_pts(s['unannounced'])} of hotels not yet in the pipeline, keeping supply on its long-run trend")
+        if abs(s.get("existing_level", 0)) >= 0.003:
+            sparts.append(f"{_pts(s['existing_level'])} from existing hotels' availability")
+        if abs(s.get("removals", 0)) >= 0.001:
+            sparts.append(f"{_pts(s['removals'])} closures and conversions")
+        if abs(s.get("drivers", 0)) >= 0.001:
+            sparts.append(f"{_pts(s['drivers'])} supply drivers")
+        occ_line = (f"Occupancy {_f(r['occ_growth']['p50'])}: demand grows {_f(dem)} against supply {_f(sup)} (P50). "
+                    f"Demand is made up mainly of {', '.join(dparts)}."
+                    + (f" Supply comes from {'; '.join(sparts)}." if sparts else ""))
+        # ADR
+        aparts = []
+        if cpi_path:
+            aparts.append(f"inflation {_pts(a['inflation'])}")
+        aparts.append(f"{'real ' if cpi_path else ''}long-run trend {_pts(a['real_drift'])}")
+        pp_ = c.get("adr_pricing_power", a["pricing_power"])
+        if abs(pp_) >= 0.001:
+            aparts.append(f"pricing response to occupancy {_pts(pp_)}")
+        if abs(c.get("adr_drivers", a.get("drivers", 0))) >= 0.001:
+            aparts.append(f"drivers {_pts(c.get('adr_drivers', a.get('drivers', 0)))}")
+        adr_line = f"ADR {_f(r['adr_growth']['p50'])}: {', '.join(aparts)}."
+        lines = [occ_line, adr_line]
+        # Against the long-run baseline (mean)
+        if rc is not None and lr is not None:
+            diff = rc["total"] - lr
+            items = []
+            for k in RECON_LABELS:
+                v = rc.get(k, 0.0)
+                if abs(v) >= 0.002:
+                    lab = RECON_LABELS[k].format(dir="above" if (k == "supply_vs_trend" and v < 0) or (k == "inflation_vs_history" and v > 0) else "below",
+                                                 shockdir="weighing on this year" if v < 0 else "easing as past downturns recover")
+                    items.append((abs(v), f"{lab} ({_pts(v)})"))
+            items.sort(reverse=True)
+            why = "; ".join(t for _, t in items[:2]) if items else "no single reason stands out"
+            lines.append(f"Against the long-run RevPAR growth of {_f(np.expm1(lr))} a year, the average path is "
+                         f"{abs(diff) * 100:.1f} points {'higher' if diff > 0 else 'lower'}, mainly because of {why}.")
+        lines.append(f"Range: RevPAR {_f(r['revpar_growth']['p10'])} to {_f(r['revpar_growth']['p90'])} (P10 to P90); "
+                     f"{r['p_revpar_negative']:.0%} chance RevPAR falls.")
+        stories.append({"year": y, "label": r["label"],
+                        "headline": f"RevPAR {_f(r['revpar_growth']['p50'])}: occupancy {_f(r['occ_growth']['p50'])}, "
+                                    f"ADR {_f(r['adr_growth']['p50'])} (P50).",
+                        "lines": lines, "flags": [f["text"] for f in flags if f.get("year") == y]})
+    return stories

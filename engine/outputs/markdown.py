@@ -121,58 +121,53 @@ def _why(out: dict) -> list[str]:
     e = out.get("explanation")
     if not e:
         return []
-    L = ["## Why the forecast sits here", ""]
-    if e["flags"]:
-        L += ["**Plausibility flags**", ""] + [f"- {f['text']}" for f in e["flags"]] + [""]
-    else:
-        L += ["No plausibility flags: each year's P50 sits inside the market's historical range.", ""]
-    L += ["**What drives it**", ""] + [f"- {d}" for d in e["drivers"]] + [""]
+    L = ["## Why the forecast sits where it does", "", "**What the baseline assumes**", ""]
+    L += [f"- {d}" for d in e["drivers"]] + [""]
+    L += ["**Year by year**", ""]
+    for st in e.get("years", []):
+        L += [f"*{st['year']} {st['label']}: {st['headline']}*", ""] + [f"- {x}" for x in st["lines"]]
+        L += [f"- Check: {fl}" for fl in st.get("flags", [])]
+        L.append("")
+    general = [f for f in e["flags"] if not f.get("year")]
+    if general:
+        L += ["**Plausibility checks**", ""] + [f"- {f['text']}" for f in general] + [""]
+    elif not e["flags"]:
+        L += ["**Plausibility checks:** none raised. Each year's P50 sits inside the market's historical range.", ""]
+    c = e.get("cumulative_revpar") or {}
+    if c:
+        L += [f"Five years together, {c['from_year']} to {c['to_year']}: RevPAR P50 {p(c['forecast_p50'])}, against "
+              f"{p(c['history_p10'])} to {p(c['history_p90'])} (P10 to P90) across the market's own {c['history_n']} five-year "
+              f"periods. The forecast sits at the {c['percentile'] * 100:.0f}th percentile.", ""]
     if e.get("reconciliation"):
         rec = e["reconciliation"]
         yrs = [r["year"] for r in rec]
-        L += ["**From the long-run baseline to the forecast** (mean log growth of RevPAR, points; the rows add up exactly)", "",
+        L += ["<details><summary>From the long-run baseline to the forecast (mean RevPAR growth, points)</summary>", "",
               "| Step | " + " | ".join(map(str, yrs)) + " |", "| --- | " + " | ".join("---:" for _ in yrs) + " |"]
         rows = [("Long-run RevPAR CAGR (baseline)", "baseline"), ("Supply against its trend, net of new-hotel demand", "supply_vs_trend"),
                 ("Pricing response to occupancy", "pricing_response"), ("Inflation against its history", "inflation_vs_history"),
                 ("Shocks against their average", "shocks_vs_average"), ("Momentum and carry-over", "momentum"),
                 ("Drivers", "drivers"), ("Occupancy ceiling", "ceiling"), ("Trend adjustments (basis or user)", "trend_adjustments"),
-                ("Noise (mean)", "noise"), ("**Forecast (mean)**", "total")]
+                ("Noise (mean)", "noise"), ("Forecast (mean)", "total")]
         for label, k in rows:
             L.append(f"| {label} | " + " | ".join(_bp(r[k]) for r in rec) + " |")
-        L.append("")
-    c = e.get("cumulative_revpar") or {}
-    if c:
-        L += [f"Cumulative RevPAR growth {c['from_year']} to {c['to_year']}: P50 {p(c['forecast_p50'])} (P10 {p(c['forecast_p10'])}, "
-              f"P90 {p(c['forecast_p90'])}). The market's own {c['history_n']} five-year periods outside COVID ranged "
-              f"{p(c['history_p10'])} (P10) to {p(c['history_p90'])} (P90), median {p(c['history_p50'])}; the forecast P50 sits at "
-              f"the {c['percentile'] * 100:.0f}th percentile.", ""]
-    L += ["**Year by year**", ""] + [f"- {y['text']}" for y in e["per_year"]] + [""]
+        L += ["", "</details>", ""]
     yrs = [b["year"] for b in e["bridge"]]
-    head = "| Component (points of growth, mean) | " + " | ".join(map(str, yrs)) + " |"
-    sep = "| --- | " + " | ".join("---:" for _ in yrs) + " |"
+    L += ["<details><summary>Growth bridge: every component by year (mean, points)</summary>", "",
+          "| Component | " + " | ".join(map(str, yrs)) + " |", "| --- | " + " | ".join("---:" for _ in yrs) + " |"]
     rows = [("Demand: trend", ("demand", "trend")), ("Demand: momentum", ("demand", "momentum")),
             ("Demand: expected shocks", ("demand", "shocks")), ("Demand: drivers", ("demand", "drivers")),
-            ("Demand: new and reopened hotels", ("demand", "new_hotels")),
-            ("Demand: occupancy ceiling", ("demand", "ceiling")), ("Demand: noise (mean)", ("demand", "noise")),
-            ("**Demand total**", ("demand", "total")),
-            ("Supply: existing stock", ("supply", "existing_level")), ("Supply: removals", ("supply", "removals")),
-            ("Supply: new builds", ("supply", "new_builds")), ("Supply: reopenings", ("supply", "reopenings")),
-            ("Supply: unannounced", ("supply", "unannounced")), ("Supply: drivers", ("supply", "drivers")),
-            ("**Supply total**", ("supply", "total")),
-            ("**Occupancy = demand minus supply**", None),
-            ("ADR: inflation", ("adr", "inflation")), ("ADR: real drift", ("adr", "real_drift")),
-            ("ADR: pricing power", ("adr", "pricing_power")), ("ADR: carry-over", ("adr", "carry_over")),
-            ("ADR: drivers", ("adr", "drivers")),
-            ("ADR: noise (mean)", ("adr", "noise")), ("**ADR total**", ("adr", "total")),
-            ("Share of paths without a shock", ("calm", "share")),
-            ("Occupancy, years without a shock", ("calm", "occ_total")),
-            ("ADR, years without a shock", ("calm", "adr_total"))]
-    L += [head, sep]
+            ("Demand: new and reopened hotels", ("demand", "new_hotels")), ("Demand: occupancy ceiling", ("demand", "ceiling")),
+            ("Demand total", ("demand", "total")), ("Supply: existing stock", ("supply", "existing_level")),
+            ("Supply: removals", ("supply", "removals")), ("Supply: new builds", ("supply", "new_builds")),
+            ("Supply: reopenings", ("supply", "reopenings")), ("Supply: unannounced", ("supply", "unannounced")),
+            ("Supply: drivers", ("supply", "drivers")), ("Supply total", ("supply", "total")),
+            ("Occupancy = demand minus supply", None), ("ADR: inflation", ("adr", "inflation")),
+            ("ADR: real drift", ("adr", "real_drift")), ("ADR: pricing power", ("adr", "pricing_power")),
+            ("ADR: carry-over", ("adr", "carry_over")), ("ADR: drivers", ("adr", "drivers")), ("ADR total", ("adr", "total"))]
     for label, key in rows:
         vals = [b["occupancy_total"] if key is None else b[key[0]].get(key[1]) for b in e["bridge"]]
-        fmt = (lambda v: "" if v is None else f"{v:.0%}") if key == ("calm", "share") else _bp
-        L.append(f"| {label} | " + " | ".join(fmt(v) for v in vals) + " |")
-    L += ["", e["note"], ""]
+        L.append(f"| {label} | " + " | ".join(_bp(v) for v in vals) + " |")
+    L += ["", e["note"], "", "</details>", ""]
     return L
 
 

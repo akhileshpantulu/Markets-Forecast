@@ -262,9 +262,19 @@ def run_forecast(res: IngestResult, cfg: MarketConfig, priors: dict, ppri: dict,
                                           for m in ("occ_growth", "adr_growth", "revpar_growth", "demand_growth")}})
     positions = position_vs_history(summary, hist.growth_pcts, hist.annual, hist.occ_annual_max)
     cpi_path_out = {str(y): cpi_rate(macro, y) for y in range(y0 + 1, y0 + cfg.horizon_years + 1)} if use_cpi else None
+    mm = res.monthly
+    ytd_cur = mm[mm["period_start"].dt.year == y0]
+    ytd_prev = mm[(mm["period_start"].dt.year == y0 - 1) & (mm["period_start"].dt.month <= int(last.month))]
+    stub_ytd = None
+    if len(ytd_cur) and len(ytd_prev) == len(ytd_cur):
+        def _occ(x): return x["demand"].sum() / x["supply"].sum()
+        def _adr(x): return x["revenue"].sum() / x["demand"].sum()
+        stub_ytd = {"months": int(len(ytd_cur)), "occ": _occ(ytd_cur) / _occ(ytd_prev) - 1, "adr": _adr(ytd_cur) / _adr(ytd_prev) - 1,
+                    "revpar": (ytd_cur["revenue"].sum() / ytd_cur["supply"].sum()) / (ytd_prev["revenue"].sum() / ytd_prev["supply"].sum()) - 1}
     explanation = build_explanation(paths, trace, sup, dm, am, hist, summary, positions, ceiling["annual"],
                                     hist_supply_growth, cpi_path_out, anchor=anchor, basis=basis,
-                                    supply_trend=hist_supply_used, shock_drag0=shock_drag0)
+                                    supply_trend=hist_supply_used, shock_drag0=shock_drag0,
+                                    stub_ytd=stub_ytd, stub_info=paths.stub_monthly)
 
     proj = sup.projects.copy()
     if not proj.empty:

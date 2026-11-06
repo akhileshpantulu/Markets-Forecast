@@ -1,0 +1,46 @@
+# Supply pipeline priors. ALL VALUES ARE ASSUMPTIONS pending user review.
+# The pilot pipeline export has no historical snapshots, so these cannot yet be
+# calibrated to observed conversion and delay. When snapshots exist, the supply
+# module replaces these with calibrated values and reports both.
+status: assumption
+basis: >
+  Judgement-based starting points for a dense European city-centre submarket
+  where most projects are conversions or refurbishments of existing buildings.
+  Not sourced. To be reviewed by the user in Phase C.
+
+stages:
+  under_construction:
+    p_open_within_horizon: 0.95
+    delay_months: {dist: triangular, low: 0, mode: 3, high: 18}
+  under_renovation:            # temporarily closed hotels returning to supply
+    p_open_within_horizon: 0.95
+    delay_months: {dist: triangular, low: 0, mode: 4, high: 18}
+  final_planning:
+    p_open_within_horizon: 0.65
+    delay_months: {dist: triangular, low: 3, mode: 12, high: 30}
+  planning:
+    p_open_within_horizon: 0.40
+    delay_months: {dist: triangular, low: 6, mode: 18, high: 36}
+  proposed:
+    p_open_within_horizon: 0.35
+    delay_months: {dist: triangular, low: 6, mode: 18, high: 36}
+  deferred:
+    p_open_within_horizon: 0.10
+    delay_months: {dist: triangular, low: 12, mode: 24, high: 48}
+  abandoned:
+    p_open_within_horizon: 0.0
+    delay_months: {dist: triangular, low: 0, mode: 0, high: 0}
+
+# Missing projected month: assume mid-year (July) and flag.
+default_open_month: 7
+
+removals:
+  annual_rate: {dist: triangular, low: 0.000, mode: 0.003, high: 0.008}
+  unit: share_of_inventory_per_year
+
+ramp_up:
+  years_to_stabilise: 3
+  demand_share_by_year: [0.65, 0.85, 1.00]
+
+induced_demand:
+  share_of_new_rooms: {dist: triangular, low: 0.0, mode: 0.3, high: 0.6}

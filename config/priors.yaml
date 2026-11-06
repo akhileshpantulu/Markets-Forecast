@@ -1,0 +1,22 @@
+# Weakly informative priors for the baseline engine. ALL VALUES ARE ASSUMPTIONS,
+# written before fitting any real data, and used only for shrinkage when the
+# history is short or a parameter is poorly identified. The fitted value, the
+# prior, and the shrinkage weight are reported in every run.
+status: assumption
+
+demand:
+  mu_log_growth: {mean: 0.010, sd: 0.020}        # long-run annual log demand growth
+  phi: {mean: 0.20, sd: 0.30, lower: -0.5, upper: 0.9}
+  residual_sd: {mean: 0.040, sd: 0.020}
+
+shock:
+  # Annual probability of a market-wide demand shock. Beta prior, mean about 0.10.
+  p_shock: {dist: beta, a: 1.5, b: 13.5}
+
+adr:
+  beta_pricing_power: {mean: 0.50, sd: 0.50, lower: 0.0}
+  real_residual_phi: {mean: 0.30, sd: 0.30, lower: -0.5, upper: 0.9}
+  real_residual_sd: {mean: 0.040, sd: 0.020}
+
+correlation:
+  demand_adr_residual: {mean: 0.30, sd: 0.30}

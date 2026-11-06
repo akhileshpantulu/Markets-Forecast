@@ -1,0 +1,23 @@
+# Synthetic test market. Not a real place; used only by tests.
+slug: synthetown-old-quarter
+name: Synthetown, Old Quarter
+geography_level: submarket
+costar_market: Synthetown
+costar_submarket: Old Quarter
+country: Nowhere
+country_iso: XX
+currency: XXX
+year_basis: calendar
+fiscal_year_start_month: 1
+horizon_years: 5
+stub_year: auto
+simulation:
+  paths: 2000
+  export_paths: 200
+  seed: 12345
+estimation:
+  covid_years: [2020, 2021, 2022]
+  min_complete_years: 8
+ingest:
+  closure_flag_ratio: 0.90
+  outlier_robust_z: 4.0

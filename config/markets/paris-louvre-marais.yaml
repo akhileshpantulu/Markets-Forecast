@@ -1,0 +1,40 @@
+# Pilot market configuration. Values marked "user" were confirmed by the user on
+# 2026-11-06. Values marked "assumption" are defaults pending review.
+slug: paris-louvre-marais
+name: Paris, Louvre/Marais
+geography_level: submarket            # user: CoStar submarket export
+costar_market: Paris                  # from pipeline export Market column
+costar_submarket: Louvre/Marais       # from pipeline export Submarket column
+country: France
+country_iso: FR
+
+currency: EUR                         # user: local currency of the export. The DataTable has no currency column; EUR is inferred from geography.
+year_basis: calendar                  # user: January to December
+fiscal_year_start_month: 1
+
+horizon_years: 5                      # stub year plus 5 full years
+stub_year: auto                       # calendar year of the latest actual month
+
+simulation:
+  paths: 20000
+  export_paths: 2000
+  seed: 20261106                      # fixed per run and recorded in run metadata
+
+estimation:
+  covid_years: [2020, 2021, 2022]     # estimated with and without; default excludes from mu and phi
+  min_complete_years: 8
+  # Validation P18 found a uniform ADR step in every month of 1999 (median +53%).
+  # Proposed default: exclude the 1998 to 1999 ADR growth observation from
+  # estimation. Awaiting user confirmation.
+  series_breaks:
+    - {measure: adr, year: 1999, action: exclude_growth, decided_by: pending, note: "Uniform step in all 12 months; likely sample or definition change"}
+
+ingest:
+  # Months whose supply / (inventory x days) falls below this ratio are reported
+  # as partial-closure months in validation (informational).
+  closure_flag_ratio: 0.90
+  outlier_robust_z: 4.0
+
+reference_series: null                # user will upload a France country-level export
+airport: null                         # user will upload airport data
+events: null                          # user will upload an events list

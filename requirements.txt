@@ -1,0 +1,13 @@
+# Pinned to the versions bundled with Pyodide 314.0.7 so the same engine code
+# runs in the browser (drag-and-drop frontend) and locally with identical
+# numerics. openpyxl is pure Python and is loaded with micropip in the browser.
+numpy==2.4.6
+pandas==3.0.2
+scipy==1.18.0
+statsmodels==0.14.6
+pydantic==2.12.5
+pyyaml==6.0.3
+pyarrow==22.0.0
+openpyxl==3.1.5
+jinja2==3.1.6
+pytest==9.0.2

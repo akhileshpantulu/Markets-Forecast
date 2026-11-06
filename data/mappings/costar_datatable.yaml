@@ -1,0 +1,45 @@
+# CoStar hospitality "DataTable" export: one row per month, newest first.
+# Built 2026-11-06 from DataTable - 2026-11-06T103928.862.xlsx (Paris, Louvre/Marais).
+# Column meanings follow CoStar definitions. Monthly columns are mapped; the
+# 3-month, 12-month and YTD columns are not stored but are used to cross-check
+# the monthly values.
+source: costar_datatable
+kind: performance
+period_type: month
+sheet: null                 # first sheet
+header_row: 1
+signature: [Period, Supply, Demand, Revenue, Occupancy, ADR, RevPAR, Inventory Rooms]
+null_tokens: ["-", "", "n/a", "N/A", "NA"]
+snapshot_date_from_filename: '(\d{4}-\d{2}-\d{2})T'
+
+period:
+  column: Period
+  format: month_name_year   # e.g. "Sept 2026", "Jan 1998"
+
+fields:
+  supply:                     {column: Supply, type: float, unit: room_nights_available}
+  demand:                     {column: Demand, type: float, unit: room_nights_sold}
+  revenue:                    {column: Revenue, type: float, unit: currency}
+  occupancy:                  {column: Occupancy, type: float, unit: ratio}
+  adr:                        {column: ADR, type: float, unit: currency_per_room_night}
+  revpar:                     {column: RevPAR, type: float, unit: currency_per_available_room_night}
+  inventory_rooms:            {column: Inventory Rooms, type: float, unit: rooms}
+  existing_buildings:         {column: Existing Buildings, type: float, unit: buildings}
+  under_construction_rooms:   {column: Under Construction Rooms, type: float, unit: rooms}
+  under_construction_buildings: {column: Under Construction Buildings, type: float, unit: buildings}
+  delivered_rooms_12m:        {column: 12 Mo Delivered Rooms, type: float, unit: rooms}
+  opened_rooms_12m:           {column: 12 Mo Opened Rooms, type: float, unit: rooms}
+
+crosscheck:
+  # Rolling 12-month sums CoStar publishes; compared with sums of monthly values.
+  rolling_12m_sum:
+    supply: 12 Mo Supply
+    demand: 12 Mo Demand
+    revenue: 12 Mo Revenue
+  # Year-over-year relative change columns; compared with values computed from monthly levels.
+  yoy_relative:
+    occupancy: Occupancy Chg (YOY)
+    adr: ADR Chg (YOY)
+    revpar: RevPAR Chg (YOY)
+    supply: Supply Chg (YOY)
+    demand: Demand Chg (YOY)

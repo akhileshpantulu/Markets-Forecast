@@ -1,0 +1,15 @@
+# Hosting and data-protection state. Read by tests/test_repo_guard.py and by
+# the deploy workflow. Update only after verifying with the GitHub API.
+repo: akhileshpantulu/Markets-Forecast
+owner_type: User                      # personal account; private Pages is not available
+repo_private: false                   # verified 2026-11-06 via search/repositories: visibility public
+repo_private_checked: 2026-11-06
+pages_private: false                  # private Pages requires an Enterprise Cloud organization
+
+# Frontend delivery decided with the user on 2026-11-06:
+# a static page (GitHub Pages or Vercel) where files are dropped in and the
+# engine runs entirely in the browser through Pyodide. The deployed bundle holds
+# code only: no CoStar rows, no run outputs. Dropped files never leave the
+# browser. report.html per run works the same way offline.
+frontend_mode: client_side_only
+deploy_may_include_run_data: false

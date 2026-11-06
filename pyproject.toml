@@ -1,0 +1,12 @@
+[project]
+name = "hotel-market-forecast"
+version = "0.1.0"
+description = "Stochastic hotel market forecasting engine (occupancy, ADR, RevPAR)"
+requires-python = ">=3.13"
+
+[tool.setuptools.packages.find]
+include = ["engine*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

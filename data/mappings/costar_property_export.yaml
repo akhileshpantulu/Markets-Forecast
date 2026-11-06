@@ -1,0 +1,56 @@
+# CoStar hospitality property export ("CostarExport"), filtered to pipeline
+# properties: under construction, under renovation (often temporarily closed),
+# proposed, planning. One row per property.
+# Built 2026-11-06 from CostarExport - 2026-11-06T104133.040.xlsx.
+# Note: the export repeats the header "Actual Owner"; it is not mapped.
+source: costar_property_export
+kind: pipeline
+sheet: null
+header_row: 1
+signature: [Building Name, Rooms, Constr Status, Property ID]
+null_tokens: ["-", "", "n/a", "N/A", "NA"]
+snapshot_date_from_filename: '(\d{4}-\d{2}-\d{2})T'
+
+fields:
+  project_id:        {column: Property ID, type: str}
+  name:              {column: Building Name, type: str}
+  rooms:             {column: Rooms, type: int}
+  stage_raw:         {column: Constr Status, type: str}
+  operation_status:  {column: Operation Status, type: str}
+  market:            {column: Market, type: str}
+  submarket:         {column: Submarket, type: str}
+  brand:             {column: Brand, type: str}
+  parent_company:    {column: Parent Company, type: str}
+  chain_scale:       {column: Class, type: str}     # STR class, set for independents too
+  scale:             {column: Scale, type: str}     # chain scale; "Independent" for unbranded
+  operation_type:    {column: Operation Type, type: str}
+  year_built:        {column: Year Built, type: int}
+  month_built:       {column: Month Built, type: str}
+  year_renov:        {column: Year Renov, type: int}
+  month_renov:       {column: Month Renov, type: str}
+  hotel_open_date:   {column: Hotel Open Date, type: str}
+  constr_start:      {column: Constr Start, type: str}
+  expansion_rooms:   {column: Expansion Rooms, type: int}
+  expansion_status:  {column: Expansion Status, type: str}
+  star_rating:       {column: Star Rating, type: float}
+
+# CoStar construction status to internal stage. An unlisted value stops ingestion.
+stage_map:
+  Under Construction: under_construction
+  Under Renovation: under_renovation
+  Final Planning: final_planning
+  Planning: planning
+  Proposed: proposed
+  Deferred: deferred
+  Abandoned: abandoned
+  Existing: existing
+  Converted: existing
+  Demolished: demolished
+
+# Projected opening:
+#   new builds (under_construction, final_planning, planning, proposed, deferred):
+#     Year Built + Month Built
+#   renovations (under_renovation): Year Renov + Month Renov (reopening date)
+projected_open:
+  new_build: {year: year_built, month: month_built}
+  renovation: {year: year_renov, month: month_renov}

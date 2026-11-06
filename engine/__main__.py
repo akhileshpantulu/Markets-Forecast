@@ -24,6 +24,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--inbox", type=Path, default=None)
     ap.add_argument("--move", action="store_true", help="archive raw files to data/raw after a passing run")
     ap.add_argument("--paths", type=int, default=None)
+    ap.add_argument("--drivers", type=Path, default=None,
+                    help="driver cards (YAML list or mapping with 'drivers'); default runs/<market>/drivers.yaml if present")
+    ap.add_argument("--settings", type=Path, default=None, help="JSON of user settings (as downloaded from the Assumptions tab)")
     args = ap.parse_args(argv)
     res, report = ingest_market(args.market, move=args.move, inbox=args.inbox)
     print(f"run_id: {res.run_id}\nvalidation: {report}")
@@ -32,7 +35,18 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     cfg = load_market_config(args.market)
     priors, ppri, macro = load_inputs(cfg)
-    out = run_forecast(res, cfg, priors, ppri, macro, n_paths=args.paths)
+    import yaml
+    dpath = args.drivers or (REPO_ROOT / "runs" / args.market / "drivers.yaml")
+    drivers = []
+    if dpath.exists():
+        doc = yaml.safe_load(dpath.read_text(encoding="utf-8"))
+        drivers = doc.get("drivers", []) if isinstance(doc, dict) else (doc or [])
+        print(f"drivers: {len(drivers)} cards from {dpath}")
+    settings = {}
+    if args.settings:
+        sdoc = json.loads(args.settings.read_text(encoding="utf-8"))
+        settings = sdoc.get("settings", sdoc)
+    out = run_forecast(res, cfg, priors, ppri, macro, n_paths=args.paths, drivers=drivers, settings=settings)
     run_dir = REPO_ROOT / "runs" / args.market / res.run_id
     (run_dir / "history.md").write_text(render_history(out, cfg), encoding="utf-8")
     (run_dir / "backtest.md").write_text(render_backtest(out), encoding="utf-8")

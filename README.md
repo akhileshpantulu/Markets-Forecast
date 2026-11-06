@@ -10,7 +10,28 @@ The build is in progress. What works today:
 - a backtest showing how often past forecasts' ranges contained what actually happened
 - a drag-and-drop web page that shows all of the above
 
-Forward-looking drivers (air access, events, macro, geopolitics), scenarios, the memo and the Excel output come in later phases. Until then, read the forecast as "what history and the pipeline alone imply".
+- **drivers**: events and risks, each with a probability and a size. They can come from a drivers file or be added on the page.
+- an **Assumptions tab** where you can change any weight or bias and rerun in a few seconds
+
+The research agents that find and source drivers for a market are set up but not yet run for Paris. Scenarios, the memo and the Excel output come in later phases.
+
+## Adjusting assumptions (Assumptions tab)
+
+After a run, open **Assumptions**. You can change:
+
+- **Pipeline:** the chance each stage opens within the forecast. The defaults are under construction 90%, final planning 60%, planning 50%, proposed 40%. You can also change the most likely delay.
+- **Supply:** the share of rooms closed each year, how much demand new and reopened hotels bring, and hotels not yet in the export.
+- **Demand:** a tilt to the trend, in points of growth a year, and multipliers on the chance of a moderate or severe shock.
+- **ADR:** a tilt to the real drift, and pricing power.
+- **Inflation path, band width, and the occupancy ceiling.**
+- **Drivers:** switch each one on or off, or change its chance of happening. You can add your own event or risk:
+  - Demand or ADR, as a percent of that year's level.
+  - A shock chance multiplier, for unrest or other risks.
+  - Extra rooms.
+  - Each can be one-off, temporary or permanent.
+  - Event chances follow a ladder unless you set them: rumour 17.5%, credible report 40%, announced 80%, tickets on sale 90%, held 100%.
+
+Press **Rerun forecast**. Your changes are listed at the top of the forecast and in the reports as user adjustments, so they stay separate from the model's estimates. Settings are remembered in your browser for each market. Use **Download settings** and **Download drivers** to keep or share them.
 
 ## The drag-and-drop page
 

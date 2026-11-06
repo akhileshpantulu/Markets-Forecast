@@ -52,6 +52,11 @@ Percentages to one decimal place; occupancy points to one decimal place.
 | Currency | Local currency of the export (EUR for Paris). The export does not state its currency, so it is set in the market config. |
 | Airport and events | The user will upload both. Also use other web sources. |
 | Exclusions | None stated. |
+| Pipeline probabilities (2026-11-06) | Ladder by stage: under construction 90%, final planning 60%, planning 50%, proposed 40%; renovation reopenings use 90%; deferred 10%. Delays, removals and induced-demand shares remain assumptions. |
+| Band widening (2026-11-06) | Approved: widen later horizons using the backtest. This only ever widens, and never makes a year narrower than the year before. |
+| Drivers raising shock probability (2026-11-06) | Approved: `affects: shock_probability` with a multiplier on the market's own shock rate. |
+| Event probability ladder (2026-11-06) | Approved: rumour 10% to 25%, credible report 30% to 50%, announced 70% to 90%, tickets on sale 85% to 95%, held 100%, cancelled 0% (`config/driver_priors.yaml`). |
+| Adjustable assumptions (2026-11-06) | The web page has an Assumptions tab for weights and biases. Every change is reported as a user adjustment. |
 
 ## Architecture decisions
 
@@ -87,10 +92,26 @@ Each evidence item records `claim, url, publisher, published, accessed`. Primary
 
 - Phase A (scaffold, ingestion, validation): done.
 - Guardrails for anomalies: done.
-- Phase B (history, stub year, baseline demand and ADR, backtest): done. At checkpoint: user reviews backtest coverage and the benchmark comparison before drivers are added.
-- Phase C (supply pipeline, reopenings, removals, ramp-up, induced demand): done.
-- Drag-and-drop page: ingestion views plus Forecast, History, Backtest and supply views. Airline and country slots wait for example files.
-- Phases D to H: not started.
+- Phase B (history, stub year, baseline demand and ADR, backtest): done. Backtest reviewed by the user.
+- Phase C (supply pipeline, reopenings, removals, ramp-up, induced demand, unannounced supply): done.
+- Phase D core: done. It covers:
+  - the driver card schema and the event-status ladder
+  - application in the simulation: one-off with payback, temporary, step, and shock probability
+  - automated critic checks and attribution by removal
+  - agent definitions in `.claude/agents/` and the `/forecast` command in `.claude/commands/`
+- Phase D research for the pilot market: not run yet. Drivers need web research with the agents.
+- Web page: Forecast, History, Backtest, Assumptions, supply and data views. Airline and country slots wait for example files.
+- Phases E to H: not started. Scenarios, memo and Excel, a full frontend pass, and automation remain.
+
+## Drivers and settings
+
+- Driver cards: `engine/drivers/schema.py`.
+  - `affects` is one of demand, adr, supply or shock_probability.
+  - Shape: `one_off` lifts one year and the next year pays it back; `temporary` decays over `decay_years`; `step` is permanent.
+  - Each card has its own random stream, so adding a card never changes the baseline draws.
+- Probability comes from the card, or from `event_status` through the ladder. Cards with validation errors are not applied. Proposed cards are included while `include_proposed` is true, and the run is then provisional.
+- Settings: `engine/settings.py` covers pipeline chance and delay by stage, removals, induced demand, unannounced supply, demand trend and ADR drift biases, pricing power, shock multipliers, inflation path, band width, horizon widening and the ceiling. They are applied after fitting. The backtest is not affected, and is cached across setting changes.
+- CLI: `python -m engine <market> --drivers <yaml> --settings <json>`. Without `--drivers`, the default is `runs/<market>/drivers.yaml` if present.
 
 ## External public data
 

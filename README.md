@@ -6,9 +6,11 @@ The build is in progress. What works today:
 
 - loading and checking the data
 - finding anomalies in the history, such as series breaks
-- a drag-and-drop web page
+- a **provisional baseline forecast**: occupancy, ADR and RevPAR growth for the current year and five more, with P10 to P90 ranges. It is built only from the market's own history and hotel pipeline.
+- a backtest showing how often past forecasts' ranges contained what actually happened
+- a drag-and-drop web page that shows all of the above
 
-The forecasting engine, the research agents and the forecast views are added in later phases.
+Forward-looking drivers (air access, events, macro, geopolitics), scenarios, the memo and the Excel output come in later phases. Until then, read the forecast as "what history and the pipeline alone imply".
 
 ## The drag-and-drop page
 
@@ -25,6 +27,10 @@ Upload slots:
 
 After you click Run, the page shows:
 
+- the baseline forecast: headline table, fan charts against history, the current year split into actual and simulated months, and where each year sits in the market's own history
+- history: growth ranges, past downturns and recoveries, supply versus demand, seasonality
+- the backtest: coverage by years ahead, and a comparison with simple benchmarks
+- supply: expected supply growth and each project's chance of opening by year
 - annual and monthly history charts, plus the annual table
 - every validation check
 - the guardrails: series breaks, which years the model may fit on, and the influence check

@@ -86,15 +86,27 @@ Each evidence item records `claim, url, publisher, published, accessed`. Primary
 ## Build state
 
 - Phase A (scaffold, ingestion, validation): done.
-- Guardrails for anomalies: done, ahead of Phase B.
-- Drag-and-drop page: built early. It covers ingestion, validation, guardrails, pipeline and mapping views. Forecast views arrive with Phases B to G. Airline and country slots are waiting for example files.
-- Phases B to H: not started.
+- Guardrails for anomalies: done.
+- Phase B (history, stub year, baseline demand and ADR, backtest): done. At checkpoint: user reviews backtest coverage and the benchmark comparison before drivers are added.
+- Phase C (supply pipeline, reopenings, removals, ramp-up, induced demand): done.
+- Drag-and-drop page: ingestion views plus Forecast, History, Backtest and supply views. Airline and country slots wait for example files.
+- Phases D to H: not started.
+
+## Model notes (Phases B and C)
+
+- Engine core is numpy and pandas only (no scipy or statsmodels) so the browser loads less.
+- Demand: AR(1) on normal-year log growth. Normal years exclude shock years, their recovery years (up to 2), COVID years (default), break years and partial years. Shrinkage toward `config/priors.yaml` with precision weights.
+- Shocks: a year falling more than 2 robust standard deviations below the median. "Severe" is a log fall beyond 0.5. Profiles come from history. Annual probabilities are Beta priors updated with the shock count.
+- ADR: nominal mode while `config/macro/FR.yaml` has no CPI history (recorded gap; the session network blocked Eurostat, INSEE, World Bank, ECB, OECD and FRED on 2026-11-06). CPI mode switches on automatically once values are entered there with sources.
+- Stub year: errors are calibrated on how the same rule performed in past years at the same month cutoff.
+- The backtest conditions on realised supply, picks residual type and COVID treatment by CRPS, and calibrates spread only if pooled ex-COVID P10 to P90 coverage falls outside 70% to 90%.
 
 ## Commands
 
 - `python -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt`
 - `python -m pytest`
 - `python -m engine.ingest <market-slug> [--no-move] [--inbox PATH]`
+- `python -m engine <market-slug> [--inbox PATH] [--move] [--paths N]`: ingest, validate, forecast; writes history.md, backtest.md, baseline.md, results.json
 - `cd web && npm ci && npm run build:all` builds `web/dist` (site) and `web/dist/forecast-app.html` (single file)
 - `cd web && PYODIDE_DIR=<local pyodide> node tests/e2e.mjs` runs the browser end-to-end test (omit `PYODIDE_DIR` to use the CDN)
 - `/forecast <market-slug>`: orchestration command, built in Phase D.

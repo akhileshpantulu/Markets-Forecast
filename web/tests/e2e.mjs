@@ -52,12 +52,17 @@ async function exercise(page, url, label) {
   await page.click(".btn.primary");
   await page.locator(".summary .badge").first().waitFor({ timeout: 120_000 });
   const verdict = await page.locator(".summary .badge").first().innerText();
-  const years = await page.locator(".panel table tbody tr").count();
-  console.log(`[${label}] verdict="${verdict}" annual rows=${years} run took ${Date.now() - t0} ms`);
+  const fcRows = await page.locator(".panel table").first().locator("tbody tr").count();
+  const err = await page.locator(".error-box").count();
+  console.log(`[${label}] verdict="${verdict}" forecast rows=${fcRows} run took ${Date.now() - t0} ms`);
   if (!verdict.includes("passed")) fail(`${label}: expected a passing validation, got "${verdict}"`);
+  if (err) fail(`${label}: error box shown: ${await page.locator(".error-box").first().innerText()}`);
+  if (fcRows !== 6) fail(`${label}: expected 6 forecast years in the headline table, got ${fcRows}`);
+  if (SHOTS) await page.screenshot({ path: join(SHOTS, `${label}-forecast.png`), fullPage: true });
+  await page.getByRole("tab", { name: "Overview" }).click();
+  const years = await page.locator(".panel table tbody tr").count();
   if (years < 10) fail(`${label}: expected annual rows, got ${years}`);
-  if (SHOTS) await page.screenshot({ path: join(SHOTS, `${label}-overview.png`), fullPage: true });
-  for (const tab of ["Checks", "Guardrails", "Pipeline"]) {
+  for (const tab of ["History", "Backtest", "Pipeline and supply", "Checks", "Guardrails"]) {
     await page.getByRole("tab", { name: tab }).click();
     if (SHOTS) await page.screenshot({ path: join(SHOTS, `${label}-${tab.toLowerCase()}.png`), fullPage: true });
   }

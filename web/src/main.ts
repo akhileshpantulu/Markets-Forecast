@@ -1,6 +1,6 @@
 import "./styles.css";
 import { Engine, PYODIDE_VERSION, type AppInfo, type MarketChoice, type Slot } from "./engine";
-import { annualChart, disposeCharts, monthlyChart } from "./charts";
+import { annualChart, disposeCharts, fanChart, monthlyChart, stubChart, type Quantiles } from "./charts";
 import { download, h, num, pct, pts, signedPct } from "./format";
 
 // ---------- result types (subset of engine/web_api.py output) ----------
@@ -20,6 +20,32 @@ interface Result {
   growth_sample: Record<string, number | string | boolean | null>[];
   influence: Record<string, { flagged: string[]; years: number[] }>;
   validation_md: string;
+  forecast?: Forecast;
+  forecast_error?: string;
+}
+
+type Q = Quantiles;
+interface SummaryRow { year: number; label: string; occ_growth: Q; occ_pts: Q; adr_growth: Q; revpar_growth: Q; demand_growth: Q;
+  supply_growth: Q; occupancy: Q; adr: Q; revpar: Q; p_revpar_negative: number; p_shock_onset: number | null }
+interface Forecast {
+  meta: { engine_version: string; seed: number; paths: number; stub_year: number; base_year: number; last_actual_month: string;
+    variant: string; spread: number; calibrated: boolean; adr_mode: string; status: string; seconds: number; currency: string };
+  summary: SummaryRow[];
+  positions: { year: number; occ_growth: { percentile: number; outside_p5_p95: boolean }; adr_growth: { percentile: number; outside_p5_p95: boolean };
+    revpar_growth: { percentile: number; outside_p5_p95: boolean }; analog_year: number | null; occ_above_hist_max: boolean }[];
+  covid_sensitivity: { default: string; by_year: { year: number; occ_growth: { difference: number }; adr_growth: { difference: number }; revpar_growth: { difference: number } }[] };
+  stub: { actual: { period: string; occupancy: number; adr: number }[]; simulated: Record<string, number | string>[];
+    calibration_years: number[]; trend_demand: number; trend_adr: number; err_demand_sd: number | null; err_adr_sd: number | null } | null;
+  base: { year: number; occupancy: number; adr: number; revpar: number };
+  models: { demand: Record<string, any>; adr: Record<string, any>; ceiling: { annual: number; basis: string } };
+  supply: { base_available_rooms: number; reference_occupancy: number; projects: Record<string, any>[]; notes: string[] };
+  history: { annual: Record<string, any>[]; growth_percentiles: Record<string, any>[]; cycles: Record<string, any>[];
+    decomposition: Record<string, any>[]; seasonality: Record<string, any>[]; seasonality_shift: Record<string, any>;
+    occ_annual_max: number; occ_annual_min: number; notes: string[] };
+  backtest: { origins: number[]; chosen: string; spread: number; calibrated: boolean; coverage: Record<string, any>[];
+    benchmarks: Record<string, any>[]; variants: Record<string, any>[]; notes: string[] };
+  gaps: string[]; assumptions: string[]; notes: string[];
+  reports: { history_md: string; backtest_md: string; baseline_md: string };
 }
 
 // ---------- state ----------
@@ -30,6 +56,7 @@ const state = {
   other: { name: "", currency: "EUR", market: "", submarket: "" },
   result: null as Result | null,
   tab: "overview",
+  fcMode: "growth" as "growth" | "level",
   running: false,
   error: "" as string,
 };
@@ -167,7 +194,7 @@ async function run() {
   try {
     const files = [...state.files.entries()].map(([slot, file]) => ({ slot, file }));
     state.result = (await engine.run(files, marketChoice())) as Result;
-    state.tab = "overview";
+    state.tab = state.result.forecast ? "forecast" : "overview";
   } catch (e) {
     state.error = e instanceof Error ? e.message : String(e);
     state.result = null;
@@ -179,15 +206,18 @@ async function run() {
 }
 
 // ---------- results ----------
-const TABS: [string, string, boolean][] = [
-  ["overview", "Overview", true],
-  ["checks", "Checks", true],
-  ["guardrails", "Guardrails", true],
-  ["pipeline", "Pipeline", true],
-  ["mapping", "Mapping", true],
-  ["report", "Report", true],
-  ["forecast", "Forecast", false],
+const TABS: [string, string][] = [
+  ["overview", "Overview"],
+  ["forecast", "Forecast"],
+  ["history", "History"],
+  ["backtest", "Backtest"],
+  ["pipeline", "Pipeline and supply"],
+  ["checks", "Checks"],
+  ["guardrails", "Guardrails"],
+  ["mapping", "Mapping"],
+  ["report", "Reports"],
 ];
+const needsForecast = new Set(["forecast", "history", "backtest"]);
 
 function badge(status: string, text?: string) {
   const label = text ?? ({ pass: "Pass", warn: "Warning", fail: "Fail", info: "Info" } as Record<string, string>)[status] ?? status;
@@ -212,7 +242,7 @@ function renderEmpty() {
       h("li", {}, "Pick the market configuration. A new market is detected from the pipeline file."),
       h("li", {}, "Run. The engine maps the columns, checks the data, finds anomalies such as series breaks, and shows what the model will fit on."),
     ),
-    h("p", {}, "Forecast results appear here once the forecasting phases are built. Airline and country performance inputs open once their formats are added."),
+    h("p", {}, "The forecast is a provisional baseline built from the market's own history and pipeline. Forward-looking drivers and scenarios arrive in later phases. Airline and country performance inputs open once their formats are added."),
     state.error ? h("div", { class: "error-box" }, `The run failed: ${state.error}`) : null,
   ));
 }
@@ -228,13 +258,13 @@ function renderResults() {
   const prevFull = lastFull ? r.annual.find((a) => a.year === lastFull.year - 1) : undefined;
 
   const tabs = h("nav", { class: "tabs", role: "tablist", "aria-label": "Result views" },
-    TABS.map(([id, label, enabled]) => h("button", {
+    TABS.map(([id, label]) => [id, label, !needsForecast.has(id) || !!r.forecast] as const).map(([id, label, enabled]) => h("button", {
       role: "tab", type: "button", id: `tab-${id}`, "aria-selected": String(state.tab === id), "aria-controls": "panel",
-      disabled: !enabled, title: enabled ? undefined : "Available once the forecasting phases are built",
+      disabled: !enabled, title: enabled ? undefined : (r.forecast_error ? "The forecast failed; see Overview" : "Needs data that passes validation"),
       onclick: () => { state.tab = id; renderResults(); },
     }, label)));
   tabs.addEventListener("keydown", (e) => {
-    const ids = TABS.filter((t) => t[2]).map((t) => t[0]);
+    const ids = TABS.map((t) => t[0]).filter((id) => !needsForecast.has(id) || !!r.forecast);
     const i = ids.indexOf(state.tab);
     if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
       state.tab = ids[(i + (e.key === "ArrowRight" ? 1 : ids.length - 1)) % ids.length];
@@ -252,6 +282,7 @@ function renderResults() {
       nFail ? badge("fail", `${nFail} failed check${nFail > 1 ? "s" : ""}`) : null,
     ),
     r.fatal.length ? h("div", { class: "error-box" }, "The run stopped:", h("ul", {}, r.fatal.map((f) => h("li", {}, f)))) : "",
+    r.forecast_error ? h("div", { class: "error-box" }, `The forecast could not run: ${r.forecast_error}`) : "",
     h("div", { class: "facts" },
       h("div", {}, h("span", {}, "History"), r.meta.first_month && r.meta.last_month ? `${r.meta.first_month} to ${r.meta.last_month}` : "none"),
       r.meta.stub_year ? h("div", {}, h("span", {}, "Stub year"), `${r.meta.stub_year}: ${r.meta.stub_actual_months} actual months`) : null,
@@ -265,7 +296,7 @@ function renderResults() {
     panel,
     h("footer", { class: "foot" }, `Engine ${r.meta.engine_version}. Python runtime: Pyodide ${PYODIDE_VERSION}. Computed in this browser on ${r.meta.date}.`),
   );
-  ({ overview, checks, guardrails, pipeline, mapping, report } as Record<string, (p: HTMLElement, r: Result) => void>)[state.tab]?.(panel, r);
+  ({ overview, forecast: forecastView, history: historyView, backtest: backtestView, checks, guardrails, pipeline, mapping, report } as Record<string, (p: HTMLElement, r: Result) => void>)[state.tab]?.(panel, r);
 }
 
 function overview(p: HTMLElement, r: Result) {
@@ -350,6 +381,19 @@ function pipeline(p: HTMLElement, r: Result) {
     h("h2", {}, "Rooms by projected opening year"),
     table(["Year", ["Rooms", "n"]], [...byYear.entries()].sort().map(([y, n]) => [y, num(n)])),
   );
+  const f = r.forecast;
+  if (!f) return;
+  const years = f.summary.map((x) => String(x.year));
+  p.append(
+    h("h2", {}, "Supply outlook"),
+    h("p", { class: "note" }, `Starting from ${num(f.supply.base_available_rooms)} available rooms in ${f.meta.last_actual_month} (temporarily closed hotels are out of supply until they reopen). Opening probabilities and delays are assumptions until pipeline snapshots are available.`),
+    table(["Year", ["Supply growth, mean", "n"], ["P10", "n"], ["P50", "n"], ["P90", "n"]], f.summary.map((x) => [
+      String(x.year), signedPct(x.supply_growth.mean), signedPct(x.supply_growth.p10), signedPct(x.supply_growth.p50), signedPct(x.supply_growth.p90)])),
+    h("h2", {}, "Opening probabilities"),
+    table(["Project", ["Rooms", "n"], "Stage", "Planned", "Median opening", ...years.map((y) => [`Open by ${y}`, "n"] as [string, string])],
+      f.supply.projects.map((x) => [x.name, num(x.rooms), String(x.stage).replace(/_/g, " "), x.projected_open ?? "", x.median_open ?? "not within horizon",
+        ...years.map((y) => pct(x[y], 0))])),
+  );
 }
 
 function mapping(p: HTMLElement, r: Result) {
@@ -366,9 +410,159 @@ function report(p: HTMLElement, r: Result) {
     h("div", { class: "downloads" },
       h("button", { class: "btn", type: "button", onclick: () => download(`validation-${r.meta.slug}-${r.meta.run_id}.md`, r.validation_md, "text/markdown") }, "Download validation.md"),
       h("button", { class: "btn", type: "button", onclick: () => download(`results-${r.meta.slug}-${r.meta.run_id}.json`, JSON.stringify(r, null, 2), "application/json") }, "Download results.json"),
+      r.forecast ? h("button", { class: "btn", type: "button", onclick: () => download(`baseline-${r.meta.slug}-${r.meta.run_id}.md`, r.forecast!.reports.baseline_md, "text/markdown") }, "Download baseline.md") : null,
+      r.forecast ? h("button", { class: "btn", type: "button", onclick: () => download(`history-${r.meta.slug}-${r.meta.run_id}.md`, r.forecast!.reports.history_md, "text/markdown") }, "Download history.md") : null,
+      r.forecast ? h("button", { class: "btn", type: "button", onclick: () => download(`backtest-${r.meta.slug}-${r.meta.run_id}.md`, r.forecast!.reports.backtest_md, "text/markdown") }, "Download backtest.md") : null,
     ),
     h("p", { class: "note" }, "Downloads are created in the browser. They contain figures derived from your CoStar files, so treat them as licensed data."),
     h("pre", { class: "md" }, r.validation_md),
+  );
+}
+
+const MEAS: Record<string, string> = { occ_growth: "Occupancy growth", occ_pts: "Occupancy change", adr_growth: "ADR growth",
+  revpar_growth: "RevPAR growth", demand_growth: "Demand growth", supply_growth: "Supply growth" };
+
+function q3(qq: Q, f: (x: number) => string) {
+  return h("span", {}, h("b", {}, f(qq.p50)), h("br"), h("span", { class: "muted small" }, `${f(qq.p10)} to ${f(qq.p90)}`));
+}
+
+function forecastView(p: HTMLElement, r: Result) {
+  const f = r.forecast!;
+  const cur = f.meta.currency;
+  p.append(
+    h("div", { class: "privacy", style: "margin-bottom:14px" },
+      `${f.meta.status}. Built from this market's history and pipeline only. ADR is in ${f.meta.adr_mode} mode`,
+      f.meta.adr_mode === "nominal" ? " because the CPI history is not loaded" : "", ". Model variant chosen by backtest: ", h("code", {}, f.meta.variant),
+      `. ${num(f.meta.paths)} paths, seed ${f.meta.seed}, computed in ${f.meta.seconds} s.`),
+    h("h2", {}, "Headline"),
+    h("p", { class: "note" }, "P50 in bold, then the P10 to P90 range. Growth is year over year; the stub year compares the full year (actual plus simulated months) with the prior full year."),
+    table(["Year", ["Occupancy growth", "n"], ["Occupancy change", "n"], ["ADR growth", "n"], ["RevPAR growth", "n"], ["Mean RevPAR growth", "n"], ["P(RevPAR down)", "n"]],
+      f.summary.map((x) => [`${x.year} ${x.label}`, q3(x.occ_growth, signedPct), q3(x.occ_pts, pts), q3(x.adr_growth, signedPct),
+        q3(x.revpar_growth, signedPct), signedPct(x.revpar_growth.mean), pct(x.p_revpar_negative, 0)])),
+    table(["Year", ["Occupancy, P50", "n"], [`ADR (${cur}), P50`, "n"], [`RevPAR (${cur}), P50`, "n"]],
+      f.summary.map((x) => [String(x.year), pct(x.occupancy.p50), num(x.adr.p50, 1), num(x.revpar.p50, 1)])),
+  );
+  const toggle = h("div", { class: "downloads", role: "group", "aria-label": "Chart values" },
+    (["growth", "level"] as const).map((m) => h("button", { class: `btn${state.fcMode === m ? " primary" : ""}`, type: "button", "aria-pressed": String(state.fcMode === m),
+      onclick: () => { state.fcMode = m; renderResults(); } }, m === "growth" ? "Growth %" : "Levels")));
+  p.append(h("h2", {}, "Forecast against history"), toggle);
+  const raw = r.annual.filter((a) => a.complete);
+  const specs = state.fcMode === "growth"
+    ? [["Occupancy growth", "occ_growth", "pct", "%"], ["ADR growth", "adr_growth", "pct", "%"], ["RevPAR growth", "revpar_growth", "pct", "%"]] as const
+    : [["Occupancy", "occupancy", "level_pct", "%"], [`ADR (${cur})`, "adr", "money", cur], [`RevPAR (${cur})`, "revpar", "money", cur]] as const;
+  const charts: (() => void)[] = [];
+  for (const [title, key, kind, unit] of specs) {
+    const el = h("div", { class: "chart", role: "img", "aria-label": `${title}: history and forecast fan` });
+    p.append(h("h3", { style: "margin-top:12px" }, title), el);
+    const hist = raw.map((a, i) => {
+      if (state.fcMode === "level") return { year: a.year, value: (a as any)[key] as number };
+      const prev = i > 0 && raw[i - 1].year === a.year - 1 ? raw[i - 1] : null;
+      const base = key === "occ_growth" ? "occupancy" : key === "adr_growth" ? "adr" : "revpar";
+      return { year: a.year, value: prev ? (a as any)[base] / (prev as any)[base] - 1 : null };
+    });
+    const fq = f.summary.map((x) => ({ year: x.year, label: x.label, q: (x as any)[key] as Q }));
+    let yRange: [number, number] | undefined;
+    if (state.fcMode === "growth") {
+      // Fit the axis to the forecast band and non-COVID history; COVID swings run off the scale.
+      // Leave out COVID years and years the guardrails exclude (series breaks) when fitting the axis.
+      const flag = key === "occ_growth" ? "use_occ" : "use_adr";
+      const skip = new Set((f.history.annual as any[]).filter((a) => a.covid || !a[flag]).map((a) => a.year));
+      const vals = [...hist.filter((x) => x.value !== null && !skip.has(x.year)).map((x) => x.value as number),
+        ...fq.flatMap((x) => [x.q.p10, x.q.p90])];
+      const lo = Math.min(...vals), hi = Math.max(...vals), padv = (hi - lo) * 0.08;
+      yRange = [Math.floor((lo - padv) * 100) / 100, Math.ceil((hi + padv) * 100) / 100];
+    }
+    charts.push(() => fanChart(el, { history: hist, forecast: fq, kind, unit, yRange }));
+  }
+  p.append(h("p", { class: "note" }, "History shows the values as reported, including the 1999 ADR step that the model excludes.",
+    state.fcMode === "growth" ? " The growth axes are fitted to the forecast and to years the model uses, so the 2020 to 2022 swings and the 1999 step run off the scale." : "",
+    " Shaded bands are P10 to P90 and P25 to P75; the line is P50 and the diamond is the mean."));
+
+  if (f.stub) {
+    const st = f.stub;
+    const el = h("div", { class: "chart", role: "img", "aria-label": "Stub year months, actual and simulated" });
+    const prior = r.monthly.filter((m) => m.period.startsWith(String(f.meta.base_year)));
+    p.append(h("h2", {}, `Stub year ${f.meta.stub_year}: actual and simulated months`),
+      h("p", { class: "note" }, `${st.actual.length} actual months. The remaining months take the prior year's months times the recency-weighted year-to-date trend (demand ${signedPct(st.trend_demand)}, ADR ${signedPct(st.trend_adr)}), with errors drawn from how that rule did in ${st.calibration_years.length} past years at the same cutoff.`),
+      el);
+    charts.push(() => stubChart(el, { prior: prior.map((m) => ({ period: m.period, value: m.occupancy })), actual: st.actual.map((a) => ({ period: a.period, value: a.occupancy })),
+      simulated: st.simulated.map((x) => ({ period: String(x.period), p10: Number(x.occ_p10), p50: Number(x.occ_p50), p90: Number(x.occ_p90) })), kind: "pct", unit: "Occupancy (%)" }));
+  }
+
+  p.append(h("h2", {}, "Against the market's history"),
+    h("p", { class: "note" }, "Where each year's P50 growth falls in this market's own record outside COVID years, and the past year that looks most like it."),
+    table(["Year", ["Occ. growth percentile", "n"], ["ADR growth percentile", "n"], ["RevPAR growth percentile", "n"], "Nearest analog", "Flags"],
+      f.positions.map((x) => {
+        const flags = (["occ_growth", "adr_growth", "revpar_growth"] as const).filter((k) => x[k].outside_p5_p95).map((k) => `${MEAS[k]} outside history P5 to P95`);
+        if (x.occ_above_hist_max) flags.push("occupancy above historical maximum");
+        return [String(x.year), pct(x.occ_growth.percentile, 0), pct(x.adr_growth.percentile, 0), pct(x.revpar_growth.percentile, 0), String(x.analog_year ?? ""), flags.join("; ") || "none"];
+      })));
+
+  const d = f.models.demand, a = f.models.adr;
+  p.append(h("h2", {}, "Models"),
+    h("ul", {},
+      h("li", {}, `Demand in normal years (${d.n_normal}): long-run growth ${signedPct(d.mu)} (data estimate ${signedPct(d.mu_hat)}, weight on data ${num(d.w_mu, 2)}), persistence ${num(d.phi, 2)}, noise ${pct(d.sigma)} a year, ${String(d.residual_type).replace("_", "-")} residuals.`),
+      h("li", {}, `Shocks found in history: ${(d.shock_years as number[]).join(", ") || "none"}. Annual probability: moderate ${pct(d.p_moderate)}, severe ${pct(d.p_severe)}.`),
+      h("li", {}, `ADR (${a.mode} mode): drift ${signedPct(a.alpha)} a year, pricing power ${num(a.beta, 2)} (ADR moves ${num(a.beta, 2)}% per 1% occupancy change), noise ${pct(a.sigma_u)}, correlation with demand ${num(a.corr, 2)}.`),
+      h("li", {}, `Occupancy ceiling ${pct(f.models.ceiling.annual)}. ${f.models.ceiling.basis}`),
+    ));
+  const cs = f.covid_sensitivity;
+  p.append(h("h2", {}, "COVID-years sensitivity"),
+    h("p", { class: "note" }, `Default: ${cs.default} 2020 to 2022 from estimation. Difference in P50 between the default and the alternative.`),
+    table(["Year", ["Occupancy growth", "n"], ["ADR growth", "n"], ["RevPAR growth", "n"]],
+      cs.by_year.map((x) => [String(x.year), signedPct(x.occ_growth.difference), signedPct(x.adr_growth.difference), signedPct(x.revpar_growth.difference)])),
+    h("h2", {}, "Gaps"), h("ul", {}, f.gaps.map((g) => h("li", {}, g))),
+    h("h2", {}, "Assumptions"), h("ul", {}, f.assumptions.map((g) => h("li", {}, g))),
+  );
+  requestAnimationFrame(() => charts.forEach((fn) => fn()));
+}
+
+function historyView(p: HTMLElement, r: Result) {
+  const hs = r.forecast!.history;
+  const ex = hs.growth_percentiles;
+  p.append(...hs.notes.map((n) => h("p", { class: "note" }, n)),
+    h("h2", {}, "Growth distributions"),
+    h("p", { class: "note" }, "Percentiles of annual growth. 'All' includes COVID years; 'ex-COVID' leaves them out. Years containing a series break are left out of both."),
+    table(["Measure", "Sample", ["n", "n"], ["P5", "n"], ["P10", "n"], ["P25", "n"], ["P50", "n"], ["P75", "n"], ["P90", "n"], ["P95", "n"]],
+      ex.map((x) => {
+        const f = x.measure === "occ_pts" ? pts : signedPct;
+        return [MEAS[x.measure] ?? x.measure, x.sample === "all" ? "All" : "Ex-COVID", String(x.n), ...[5, 10, 25, 50, 75, 90, 95].map((q) => f(x[`p${q}`]))];
+      })),
+    h("h2", {}, "Cycle map"),
+    h("p", { class: "note" }, "Falls of 3% or more from a running peak in annual nominal RevPAR and demand."),
+    table(["Measure", "Peak", "Trough", ["Depth", "n"], "Recovered", ["Years to recover", "n"], "Episode"],
+      hs.cycles.map((x) => [x.measure === "revpar" ? "RevPAR" : "Demand", String(x.peak_year), String(x.trough_year), signedPct(x.depth),
+        x.recovery_year === null ? "not yet" : String(x.recovery_year), x.years_to_recover === null ? "" : String(x.years_to_recover), x.episode])),
+    h("h2", {}, "Supply and demand decomposition"),
+    h("p", { class: "note" }, "Each year's change in occupancy (log) split into the part from demand and the part from supply."),
+    table(["Year", ["Occupancy change", "n"], ["From demand", "n"], ["From supply", "n"]],
+      hs.decomposition.map((x) => [String(x.year) + (x.covid ? " (COVID)" : ""), signedPct(x.dlog_occ), signedPct(x.from_demand), signedPct(x.from_supply)])),
+    h("h2", {}, "Seasonality"),
+    h("p", { class: "note" }, `Monthly share of annual demand and ADR index (month ADR divided by annual ADR), ${hs.seasonality_shift.early_years} against ${hs.seasonality_shift.recent_years}.`),
+    table(["Month", ["Demand share, early", "n"], ["Demand share, recent", "n"], ["ADR index, early", "n"], ["ADR index, recent", "n"]],
+      hs.seasonality.map((x) => [new Date(2000, x.month - 1, 1).toLocaleString("en-GB", { month: "short" }), pct(x.demand_share_early), pct(x.demand_share_recent),
+        num(x.adr_index_early, 2), num(x.adr_index_recent, 2)])),
+  );
+}
+
+function backtestView(p: HTMLElement, r: Result) {
+  const b = r.forecast!.backtest;
+  p.append(
+    h("p", {}, `Rolling origins ${b.origins[0]} to ${b.origins[b.origins.length - 1]}: at each origin the models are refitted on data up to that year only, then the next five years are simulated and compared with what happened.`),
+    h("ul", {}, b.notes.map((n) => h("li", { class: "note" }, n))),
+    h("h2", {}, "Model variants"),
+    h("p", { class: "note" }, "CRPS measures the whole forecast distribution against the outcome (lower is better). Coverage is the share of outcomes inside the P10 to P90 band (target 80%)."),
+    table(["Variant", ["CRPS, all outcomes", "n"], ["Coverage, all", "n"], ["CRPS, ex-COVID outcomes", "n"], ["Coverage, ex-COVID", "n"]],
+      b.variants.map((x) => [x.variant + (x.variant === b.chosen ? " (chosen)" : ""), num(x.crps_all, 4), pct(x.cov80_all, 0), num(x.crps_ex_covid, 4), pct(x.cov80_ex_covid, 0)])),
+    h("p", { class: "note" }, `Spread calibration factor ${b.spread}${b.calibrated ? " (applied)" : " (not needed: coverage within 70% to 90%)"}.`),
+    h("h2", {}, "Coverage by horizon"),
+    h("p", { class: "note" }, "'Ex-COVID' drops outcome years 2020 to 2022. Bias is the median forecast minus the outcome, on average. Each cell rests on 12 to 19 outcomes, so treat differences of 10 points as noise."),
+    table(["Measure", ["Years ahead", "n"], ["n", "n"], ["P10-P90, all", "n"], ["P10-P90, ex-COVID", "n"], ["P25-P75, ex-COVID", "n"], ["Bias, ex-COVID", "n"]],
+      b.coverage.filter((x) => x.spread === b.spread).map((x) => [MEAS[x.measure], String(x.h), String(x.n), pct(x.cov80, 0), pct(x.cov80_ex, 0), pct(x.cov50_ex, 0), signedPct(x.bias_ex)])),
+    h("h2", {}, "Against naive benchmarks"),
+    h("p", { class: "note" }, "Ex-COVID outcomes. Model CRPS against the absolute error of two point forecasts: zero growth, and the historical mean growth known at the origin. For a point forecast CRPS equals absolute error, so the columns compare directly."),
+    table(["Measure", ["Years ahead", "n"], ["Model CRPS", "n"], ["Model median abs. error", "n"], ["Zero growth abs. error", "n"], ["Historical mean abs. error", "n"]],
+      b.benchmarks.filter((x) => x.outcomes === "ex_covid").map((x) => [MEAS[x.measure], String(x.h), pct(x.model_crps), pct(x.model_mae), pct(x.zero_mae), pct(x.mean_mae)])),
   );
 }
 

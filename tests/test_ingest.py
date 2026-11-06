@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pandas as pd
+import pytest
 
 from engine.ingest.core import InputFile, ingest_files
 from engine.ingest.report import render_validation
@@ -125,4 +126,12 @@ def test_fixture_generator_is_deterministic(tmp_path, perf_bytes, pipe_bytes):
         a = read_table(committed, filename=name)
         b = read_table(tmp_path / name)
         assert a.headers == b.headers
-        assert a.rows == b.rows
+        assert len(a.rows) == len(b.rows)
+        # Floats can differ in the last bits across CPUs (numpy SIMD paths), so compare
+        # numbers with a tight relative tolerance and everything else exactly.
+        for ra, rb in zip(a.rows, b.rows):
+            for va, vb in zip(ra, rb, strict=True):
+                if isinstance(va, float) or isinstance(vb, float):
+                    assert va == pytest.approx(vb, rel=1e-12)
+                else:
+                    assert va == vb

@@ -13,7 +13,29 @@ The build is in progress. What works today:
 - **drivers**: events and risks, each with a probability and a size. They can come from a drivers file or be added on the page.
 - an **Assumptions tab** where you can change any weight or bias and rerun in a few seconds
 
-The research agents that find and source drivers for a market are set up but not yet run for Paris. Scenarios, the memo and the Excel output come in later phases.
+Scenarios, the memo and the Excel output come in later phases.
+
+## Getting a drivers document
+
+Drivers come from research agents that run in a Claude Code session, not on the page. In a session on this repository, run:
+
+```
+/forecast <market-slug>
+```
+
+It researches supply, demand and geopolitical drivers, has a critic approve or reject each one, and writes two files to `runs/<market-slug>/`:
+
+- `drivers.yaml`: drop it into the **Drivers** slot on the page.
+- `drivers.md`: the readable version. For every driver it gives how it works, its chance and size (labelled as judgements), what is already in the historical baseline, the sources with dates, the critic's note and the automated checks.
+
+You do not need to upload anything for this. Two optional inputs make the cards better:
+
+- **Your CoStar performance and pipeline exports.** The session runs the baseline from them, so the agents can see the market's long-run trend, its past shocks and the pipeline project by project. The critic uses this to reject drivers that are already in the trend (double counting) and to size each driver against the market's own growth.
+- **The `results.json` from the page** (Reports tab). It gives the same information when you would rather not share the raw exports.
+
+The validation report is never needed. Both inputs hold licensed CoStar figures, so they stay in the session and are never committed while this repository is public.
+
+To build the document from card files you wrote or edited yourself, run `python -m engine.drivers.doc <market-slug> [files...]`.
 
 ## Adjusting assumptions (Assumptions tab)
 

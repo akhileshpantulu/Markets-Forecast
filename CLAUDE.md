@@ -101,7 +101,8 @@ Each evidence item records `claim, url, publisher, published, accessed`. Primary
   - application in the simulation: one-off with payback, temporary, step, and shock probability
   - automated critic checks and attribution by removal
   - agent definitions in `.claude/agents/` and the `/forecast` command in `.claude/commands/`
-- Phase D research for the pilot market: not run yet. Drivers need web research with the agents.
+- Phase D research: run for London (8 proposed cards, local only). Not yet run for Paris.
+- `/forecast <market>` produces a drivers document only: researchers write `runs/<market>/drivers_<agent>.yaml` in parallel, the critic sets status, and `python -m engine.drivers.doc <market>` merges and checks them into `drivers.yaml` (for the page's Drivers slot) and `drivers.md` (readable). The forecast itself runs on the page. CoStar exports or the page's results.json are optional inputs that let the critic check overlap with the baseline.
 - Web page: Forecast, History, Backtest, Assumptions, supply and data views. Airline and country slots wait for example files.
 - Phases E to H: not started. Scenarios, memo and Excel, a full frontend pass, and automation remain.
 
@@ -155,4 +156,5 @@ Each evidence item records `claim, url, publisher, published, accessed`. Primary
 - `python -m engine <market-slug> [--inbox PATH] [--move] [--paths N]`: ingest, validate, forecast; writes history.md, backtest.md, baseline.md, results.json
 - `cd web && npm ci && npm run build:all` builds `web/dist` (site) and `web/dist/forecast-app.html` (single file)
 - `cd web && PYODIDE_DIR=<local pyodide> node tests/e2e.mjs` runs the browser end-to-end test (omit `PYODIDE_DIR` to use the CDN)
-- `/forecast <market-slug>`: orchestration command, built in Phase D.
+- `/forecast <market-slug>`: research, critic and drivers document for one market
+- `python -m engine.drivers.doc <market-slug> [files...] [--stub-year YYYY]`: merge `runs/<market>/drivers_*.yaml`, check, write drivers.yaml and drivers.md

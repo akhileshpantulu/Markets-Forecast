@@ -18,4 +18,4 @@ Follow BUILD_PROMPT section 6.6.1 and CLAUDE.md.
    - A specific, sized effect (rerouted transfer traffic, a lost source market) becomes a demand or ADR card.
    - The baseline already contains the historical rate of shocks (see `models.demand.shock_years` and `p_moderate`). Only the part above that rate counts. Say so in `baseline_overlap_note`.
 4. Link drivers that move together through `conditional_on` with a scenario name (escalation, base, resolution) so Phase E can switch them on together.
-5. Status `proposed`.
+5. Write the cards to `runs/<market>/drivers_geopolitics.yaml` (a top-level `drivers:` list) with status `proposed`. Never write to `drivers.yaml`. If the caller gives no `results.json`, take the market's shock history from public sources and state that in `baseline_overlap_note`.

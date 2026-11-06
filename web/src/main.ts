@@ -42,7 +42,7 @@ interface Forecast {
   history: { annual: Record<string, any>[]; growth_percentiles: Record<string, any>[]; cycles: Record<string, any>[];
     decomposition: Record<string, any>[]; seasonality: Record<string, any>[]; seasonality_shift: Record<string, any>;
     occ_annual_max: number; occ_annual_min: number; notes: string[] };
-  backtest: { origins: number[]; chosen: string; spread: number; calibrated: boolean; coverage: Record<string, any>[];
+  backtest: { origins: number[]; chosen: string; spread: number; spread_by_h?: number[]; calibrated: boolean; coverage: Record<string, any>[];
     benchmarks: Record<string, any>[]; variants: Record<string, any>[]; notes: string[] };
   explanation?: { bridge: Record<string, any>[]; flags: { level: string; year: number | null; text: string }[]; drivers: string[];
     per_year: { year: number; text: string }[]; cumulative_revpar: Record<string, number>; note: string };
@@ -599,7 +599,9 @@ function backtestView(p: HTMLElement, r: Result) {
     h("p", { class: "note" }, "CRPS measures the whole forecast distribution against the outcome (lower is better). Coverage is the share of outcomes inside the P10 to P90 band (target 80%)."),
     table(["Variant", ["CRPS, all outcomes", "n"], ["Coverage, all", "n"], ["CRPS, ex-COVID outcomes", "n"], ["Coverage, ex-COVID", "n"]],
       b.variants.map((x) => [x.variant + (x.variant === b.chosen ? " (chosen)" : ""), num(x.crps_all, 4), pct(x.cov80_all, 0), num(x.crps_ex_covid, 4), pct(x.cov80_ex_covid, 0)])),
-    h("p", { class: "note" }, `Spread calibration factor ${b.spread}${b.calibrated ? " (applied)" : " (not needed: coverage within 70% to 90%)"}.`),
+    h("p", { class: "note" }, b.calibrated && b.spread_by_h
+      ? `Bands widened by years ahead (multiplier on the model's noise): ${b.spread_by_h.map((k, i) => `${i + 1}: ${k}`).join(", ")}. Coverage below is after widening; the multipliers were chosen on this backtest, so it is in-sample.`
+      : "No band widening needed."),
     h("h2", {}, "Coverage by horizon"),
     h("p", { class: "note" }, "'Ex-COVID' drops outcome years 2020 to 2022. Bias is the median forecast minus the outcome, on average. Each cell rests on 12 to 19 outcomes, so treat differences of 10 points as noise."),
     table(["Measure", ["Years ahead", "n"], ["n", "n"], ["P10-P90, all", "n"], ["P10-P90, ex-COVID", "n"], ["P25-P75, ex-COVID", "n"], ["Bias, ex-COVID", "n"]],

@@ -35,3 +35,7 @@ backtest:
   paths: 2000
   target_coverage: 0.80
   calibrate_if_outside: [0.70, 0.90]
+  # Approved by the user on 2026-11-06: widen bands per forecast horizon so each
+  # horizon's P10 to P90 coverage (ex-COVID outcomes) gets as close to 80% as the
+  # grid allows. Bands are only ever widened, and never narrower than the year before.
+  horizon_calibration: true

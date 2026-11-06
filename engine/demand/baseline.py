@@ -204,8 +204,11 @@ def draw_innovations(model: DemandModel, rng: np.random.Generator, size: tuple[i
     return rng.choice(r, size=size, replace=True)
 
 
-def simulate_shocks(model: DemandModel, rng: np.random.Generator, n_paths: int, n_years: int) -> tuple[np.ndarray, np.ndarray]:
-    """Return (deviation[n_paths, n_years], class code: 0 none, 1 moderate, 2 severe at onset)."""
+def simulate_shocks(model: DemandModel, rng: np.random.Generator, n_paths: int, n_years: int,
+                    mult: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray]:
+    """Return (deviation[n_paths, n_years], class code: 0 none, 1 moderate, 2 severe at onset).
+
+    mult [n_paths, n_years] scales the annual shock probability (drivers and user settings)."""
     dev = np.zeros((n_paths, n_years))
     onset = np.zeros((n_paths, n_years), dtype=np.int8)
     by_cls = {c: [p for p in model.shock_profiles if p.cls == c] for c in ("moderate", "severe")}
@@ -216,8 +219,10 @@ def simulate_shocks(model: DemandModel, rng: np.random.Generator, n_paths: int, 
     pick = rng.random((n_paths, n_years))
     for t in range(n_years):
         free = busy_until <= t
-        sev = free & (u[:, t] < p_sev)
-        mod = free & ~sev & (u[:, t] < p_sev + p_mod)
+        m = mult[:, t] if mult is not None else 1.0
+        ps, pm = np.minimum(p_sev * m, 0.5), np.minimum(p_mod * m, 0.9)
+        sev = free & (u[:, t] < ps)
+        mod = free & ~sev & (u[:, t] < ps + pm)
         for code, mask, cls in ((2, sev, "severe"), (1, mod, "moderate")):
             idx = np.nonzero(mask)[0]
             if len(idx) == 0:

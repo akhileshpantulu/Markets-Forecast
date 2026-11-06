@@ -58,6 +58,7 @@ class BacktestResult:
     benchmarks: pd.DataFrame               # by measure x horizon: model CRPS, model MAE, zero MAE, mean MAE
     variants: pd.DataFrame                 # variant comparison
     notes: list[str] = field(default_factory=list)
+    spread_by_h: list[float] = field(default_factory=list)   # spread multiplier per horizon (1..5)
 
 
 def _annual_levels(monthly: pd.DataFrame) -> pd.DataFrame:
@@ -98,7 +99,10 @@ def run_backtest(monthly_spliced: pd.DataFrame, sample: pd.DataFrame, annual_his
                and sum(1 for y in usable_years if y <= t) >= pb["first_origin_min_years"]]
     variants = [Variant(False, "bootstrap"), Variant(False, "student_t"), Variant(True, "bootstrap"), Variant(True, "student_t")]
 
-    def run(vi: int, var: Variant, k: float) -> list[dict]:
+    def run(vi: int, var: Variant, k, label: float | None = None) -> list[dict]:
+        """k: spread multiplier, a float or one value per horizon. label: value stored in the 'spread' column."""
+        k_arr = np.broadcast_to(np.asarray(k, float), (max_h,))
+        label = float(k) if label is None else label
         out = []
         for T in origins:
             s_T = sample[sample["year"] <= T]
@@ -123,13 +127,13 @@ def run_backtest(monthly_spliced: pd.DataFrame, sample: pd.DataFrame, annual_his
                 "adr_growth": float(np.expm1(s_T.loc[s_T["use_adr"], "g_adr"]).mean()),
                 "revpar_growth": float(np.expm1(s_T.loc[s_T["use_revpar"], "g_revpar"]).mean()),
             }
-            rng = np.random.default_rng([seed, vi, T, int(round(k * 100))])
+            rng = np.random.default_rng([seed, vi, T, int(round(float(np.sum(k_arr)) * 100))])
             one = lambda v: np.full(n_paths, float(v))
             cp = naive_cpi_path(cpi, T, H, n_paths, rng) if (cpi and am.mode == "cpi") else None
             c0 = cpi.get(T, NAIVE_CPI_TARGET) if cp is not None else 0.0
             occ, adr, dem, _ = project_years(dm, am, rng, n_paths, H, one(o["demand"]), one(p["demand"]), one(0.0),
                                              one(o["supply"]), one(o["occupancy"]), one(p["occupancy"]),
-                                             one(o["adr"]), one(p["adr"]), sup, ind, ceil, cp, k, _x_range(a_T), c0)
+                                             one(o["adr"]), one(p["adr"]), sup, ind, ceil, cp, k_arr[:H], _x_range(a_T), c0)
             prev_occ = np.column_stack([one(o["occupancy"]), occ[:, :-1]])
             prev_adr = np.column_stack([one(o["adr"]), adr[:, :-1]])
             prev_dem = np.column_stack([one(o["demand"]), dem[:, :-1]])
@@ -144,7 +148,7 @@ def run_backtest(monthly_spliced: pd.DataFrame, sample: pd.DataFrame, annual_his
                     x = sims[meas][:, h - 1]
                     q10, q25, q50, q75, q90 = np.percentile(x, [10, 25, 50, 75, 90])
                     yv = float(act[meas])
-                    out.append({"variant": var.key, "spread": k, "origin": T, "h": h, "year": y, "measure": meas,
+                    out.append({"variant": var.key, "spread": label, "origin": T, "h": h, "year": y, "measure": meas,
                                 "actual": yv, "p10": q10, "p50": q50, "p90": q90,
                                 "in80": q10 <= yv <= q90, "in50": q25 <= yv <= q75, "crps": crps_sample(x, yv),
                                 "err_median": q50 - yv, "zero_abs": abs(yv), "mean_abs": abs(hist_mean[meas] - yv),
@@ -180,9 +184,37 @@ def run_backtest(monthly_spliced: pd.DataFrame, sample: pd.DataFrame, annual_his
 
     lo, hi = pb["calibrate_if_outside"]
     k_used, calibrated = 1.0, False
+    spread_by_h: list[float] = [1.0] * max_h
+    vi = [v.key for v in variants].index(chosen)
     base_cov = rec[(rec["variant"] == chosen) & ~rec["covid_outcome"]]["in80"].mean()
-    if not (lo <= base_cov <= hi):
-        vi = [v.key for v in variants].index(chosen)
+    if pb.get("horizon_calibration"):
+        # Widen per horizon: try each spread on the grid at or above 1.0, pick the one whose ex-COVID
+        # P10 to P90 coverage at that horizon is closest to the target, never narrowing year to year.
+        extra = []
+        for k in SPREAD_GRID:
+            if k > 1.0:
+                extra += run(vi, variants[vi], k)
+        rec = pd.concat([rec, pd.DataFrame(extra)], ignore_index=True)
+        ch = rec[(rec["variant"] == chosen) & ~rec["covid_outcome"] & (rec["spread"] >= 1.0)]
+        prev = 1.0
+        for h in range(1, max_h + 1):
+            cov_k = ch[ch["h"] == h].groupby("spread")["in80"].mean()
+            if cov_k.empty:
+                spread_by_h[h - 1] = prev
+                continue
+            best = float((cov_k - pb["target_coverage"]).abs().idxmin())
+            prev = max(prev, best)
+            spread_by_h[h - 1] = prev
+        if any(k != 1.0 for k in spread_by_h):
+            calibrated = True
+            k_used = -1.0                                   # label for the horizon-calibrated pass
+            rec = pd.concat([rec, pd.DataFrame(run(vi, variants[vi], spread_by_h, label=-1.0))], ignore_index=True)
+            after = rec[(rec["variant"] == chosen) & (rec["spread"] == -1.0) & ~rec["covid_outcome"]]
+            notes.append("Bands widened by horizon (spread multiplier by years ahead: "
+                         + ", ".join(f"{h + 1}: {k:g}" for h, k in enumerate(spread_by_h))
+                         + f"). Ex-COVID P10 to P90 coverage moves from {base_cov:.0%} to {after['in80'].mean():.0%}. "
+                         "The multipliers are chosen on this same backtest, so the calibrated coverage is in-sample.")
+    elif not (lo <= base_cov <= hi):
         extra = []
         for k in SPREAD_GRID:
             if k != 1.0:
@@ -192,6 +224,7 @@ def run_backtest(monthly_spliced: pd.DataFrame, sample: pd.DataFrame, annual_his
         cov_by_k = ch.groupby("spread")["in80"].mean()
         k_used = float((cov_by_k - pb["target_coverage"]).abs().idxmin())
         calibrated = k_used != 1.0
+        spread_by_h = [k_used] * max_h
         notes.append(f"Coverage at spread 1.0 was {cov_by_k.get(1.0):.0%} (outside {lo:.0%} to {hi:.0%}); "
                      f"spreads are scaled by {k_used:g}, giving {cov_by_k[k_used]:.0%}.")
 
@@ -214,4 +247,5 @@ def run_backtest(monthly_spliced: pd.DataFrame, sample: pd.DataFrame, annual_his
                                                zero_mae=("zero_abs", "mean"), mean_mae=("mean_abs", "mean"), n=("crps", "size"))
         g["outcomes"] = label
         bm.append(g.reset_index())
-    return BacktestResult(rec, origins, chosen, k_used, calibrated, coverage, pd.concat(bm, ignore_index=True), vt, notes)
+    return BacktestResult(rec, origins, chosen, k_used, calibrated, coverage, pd.concat(bm, ignore_index=True), vt, notes,
+                          spread_by_h)

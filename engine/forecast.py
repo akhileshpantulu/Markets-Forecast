@@ -138,9 +138,10 @@ def run_forecast(res: IngestResult, cfg: MarketConfig, priors: dict, ppri: dict,
                                       n_paths, rng, covid, k, cp, c0, trace)
 
     trace: dict = {}
-    sup, paths = simulate(dm, bt.spread, trace)
+    spread_arr = np.asarray(bt.spread_by_h[:cfg.horizon_years] if bt.spread_by_h else [1.0] * cfg.horizon_years, float)
+    sup, paths = simulate(dm, spread_arr, trace)
     summary = summarise(paths)
-    _, paths_alt = simulate(dm_alt, bt.spread)
+    _, paths_alt = simulate(dm_alt, spread_arr)
     summary_alt = summarise(paths_alt)
     sens = []
     for a, b in zip(summary, summary_alt):
@@ -178,7 +179,8 @@ def run_forecast(res: IngestResult, cfg: MarketConfig, priors: dict, ppri: dict,
     out = {
         "meta": {"engine_version": __version__, "seed": seed, "paths": n_paths, "horizon_years": cfg.horizon_years,
                  "stub_year": y0, "base_year": y0 - 1, "last_actual_month": last.strftime("%Y-%m"),
-                 "variant": bt.chosen, "spread": bt.spread, "calibrated": bt.calibrated, "adr_mode": am.mode,
+                 "variant": bt.chosen, "spread": bt.spread, "spread_by_h": list(spread_arr), "calibrated": bt.calibrated,
+                 "adr_mode": am.mode,
                  "status": "Provisional baseline: no drivers or scenarios", "seconds": None,
                  "currency": cfg.currency},
         "macro": {"adr_mode": am.mode,
@@ -202,6 +204,7 @@ def run_forecast(res: IngestResult, cfg: MarketConfig, priors: dict, ppri: dict,
             "occ_annual_max": hist.occ_annual_max, "occ_annual_min": hist.occ_annual_min, "real_adr": hist.real_adr,
             "notes": hist.notes},
         "backtest": {"origins": bt.origins, "chosen": bt.chosen, "spread": bt.spread, "calibrated": bt.calibrated,
+                     "spread_by_h": list(spread_arr),
                      "coverage": _records(bt.coverage), "benchmarks": _records(bt.benchmarks),
                      "variants": _records(bt.variants), "notes": bt.notes,
                      "records": _records(bt.records[(bt.records["variant"] == bt.chosen) & (bt.records["spread"] == bt.spread)]

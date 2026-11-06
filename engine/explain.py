@@ -86,12 +86,14 @@ def build_explanation(paths: Paths, trace: dict, sp: SupplyPaths, dm: DemandMode
         bridge.append({
             "year": y,
             "demand": {"trend": t["demand_trend"], "momentum": t["demand_momentum"], "shocks": t["demand_shocks"],
+                       "drivers": t.get("demand_drivers", 0.0),
                        "new_hotels": t["demand_new_hotels"], "ceiling": t["demand_ceiling"], "noise": t["demand_noise"],
                        "total": t["demand_total"]},
-            "supply": {**s, "total": t["supply_total"]},
+            "supply": {**s, "drivers": t.get("supply_drivers", 0.0), "total": t["supply_total"]},
             "occupancy_total": occ_total,
             "adr": {"inflation": t["adr_inflation"], "real_drift": t["adr_real_drift"], "pricing_power": t["adr_pricing_power"],
-                    "carry_over": t["adr_carry_over"], "noise": t["adr_noise"], "total": t["adr_total"]},
+                    "carry_over": t["adr_carry_over"], "drivers": t.get("adr_drivers", 0.0), "noise": t["adr_noise"],
+                    "total": t["adr_total"]},
             "share_at_ceiling": t["share_at_ceiling"],
             "calm": {k[5:]: t[k] for k in t if k.startswith("calm_")},
         })

@@ -1,28 +1,30 @@
-# Supply pipeline priors. ALL VALUES ARE ASSUMPTIONS pending user review.
-# The pilot pipeline export has no historical snapshots, so these cannot yet be
-# calibrated to observed conversion and delay. When snapshots exist, the supply
-# module replaces these with calibrated values and reports both.
-status: assumption
+# Supply pipeline priors. Opening probabilities follow the stage ladder the
+# user set on 2026-11-06: under construction 90%, final planning about 60%,
+# proposed 40%. Planning sits between final planning and proposed; renovation
+# reopenings use the under-construction value; deferred and abandoned are
+# assumptions. Delays remain ASSUMPTIONS. The pipeline export has no historical
+# snapshots, so none of this can be calibrated yet. Every value can be changed
+# on the web page (Assumptions tab) for a what-if run.
+status: user_set_ladder
 basis: >
-  Judgement-based starting points for a dense European city-centre submarket
-  where most projects are conversions or refurbishments of existing buildings.
-  Not sourced. To be reviewed by the user in Phase C.
+  Probability that a project opens within the forecast horizon, by CoStar
+  construction status. Timing = projected opening plus a triangular delay.
 
 stages:
   under_construction:
-    p_open_within_horizon: 0.95
+    p_open_within_horizon: 0.90
     delay_months: {dist: triangular, low: 0, mode: 3, high: 18}
   under_renovation:            # temporarily closed hotels returning to supply
-    p_open_within_horizon: 0.95
+    p_open_within_horizon: 0.90
     delay_months: {dist: triangular, low: 0, mode: 4, high: 18}
   final_planning:
-    p_open_within_horizon: 0.65
+    p_open_within_horizon: 0.60
     delay_months: {dist: triangular, low: 3, mode: 12, high: 30}
   planning:
-    p_open_within_horizon: 0.40
+    p_open_within_horizon: 0.50
     delay_months: {dist: triangular, low: 6, mode: 18, high: 36}
   proposed:
-    p_open_within_horizon: 0.35
+    p_open_within_horizon: 0.40
     delay_months: {dist: triangular, low: 6, mode: 18, high: 36}
   deferred:
     p_open_within_horizon: 0.10

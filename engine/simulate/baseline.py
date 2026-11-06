@@ -114,53 +114,66 @@ def project_years(dm: DemandModel, am: AdrModel, rng: np.random.Generator, n_pat
                   d0: np.ndarray, d_prev: np.ndarray, induced0: np.ndarray, s0: np.ndarray, occ0: np.ndarray,
                   occ_prev: np.ndarray, adr0: np.ndarray, adr_prev: np.ndarray, supply: np.ndarray, induced: np.ndarray,
                   ceiling: float, cpi: np.ndarray | None = None, spread: float = 1.0, x_range: tuple[float, float] = (-0.15, 0.15),
-                  cpi0: np.ndarray | float = 0.0, trace: dict | None = None):
+                  cpi0: np.ndarray | float = 0.0, trace: dict | None = None, levels: dict | None = None):
     """Annual projection from an origin year (index 0 = origin, already known per path).
 
     supply, induced: [paths, n_years] annual room nights for years 1..n.
     cpi: [paths, n_years] inflation (decimal) in CPI mode; cpi0: origin-year inflation.
+    spread: float or [n_years] multiplier on the demand and ADR innovations.
+    levels: driver level effects (log) {"demand": [paths, n_years+1], "adr": [paths, n_years+1],
+            "shock_mult": [paths, n_years]}; column 0 is the origin year.
     Returns occ, adr, demand arrays [paths, n_years] and shock onset codes.
     """
+    lv = levels or {}
+    Ld = lv.get("demand", np.zeros((n_paths, n_years + 1)))
+    La = lv.get("adr", np.zeros((n_paths, n_years + 1)))
+    spread_t = np.broadcast_to(np.asarray(spread, float), (n_years,))
     z = draw_innovations(dm, rng, (n_paths, n_years))
     z2 = rng.standard_normal((n_paths, n_years))
-    dev, onset = simulate_shocks(dm, rng, n_paths, n_years)
-    sig = dm.sigma * spread
-    sig_u = am.sigma_u * spread
+    dev, onset = simulate_shocks(dm, rng, n_paths, n_years, lv.get("shock_mult"))
     c = am.corr
     g_lag = np.log(d0 / d_prev)
-    org = d0 - induced0
+    org = (d0 - induced0) * np.exp(-Ld[:, 0])           # organic demand excludes driver effects
     dlog_occ0 = np.log(occ0 / occ_prev)
     pi0 = np.log1p(cpi0) if cpi is not None else 0.0
-    r = np.log(adr0 / adr_prev) - pi0 - am.alpha - am.beta * np.clip(dlog_occ0, *x_range)
+    r = np.log(adr0 / adr_prev) - pi0 - am.alpha - am.beta * np.clip(dlog_occ0, *x_range) - La[:, 0]
     occ_out = np.empty((n_paths, n_years)); adr_out = np.empty((n_paths, n_years)); dem_out = np.empty((n_paths, n_years))
     occ_p, adr_p, gn = occ0, adr0, g_lag
     # Ratios at the origin for the trace: total/organic demand, and capped/uncapped demand.
-    ind_ratio_p = np.log(d0 / np.maximum(org, 1e-9))
+    ind_ratio_p = np.log(d0 / np.maximum(org * np.exp(Ld[:, 0]), 1e-9))
     cap_ratio_p = np.zeros(n_paths)
     dem_p, s_p = d0, s0
     for t in range(n_years):
+        sig = dm.sigma * spread_t[t]
+        sig_u = am.sigma_u * spread_t[t]
         momentum = dm.phi * (gn - dm.mu)
         noise = sig * z[:, t]
         gn = dm.mu + momentum + noise
         org = org * np.exp(gn + dev[:, t])
-        unc = org + induced[:, t]
+        with_drivers = org * np.exp(Ld[:, t + 1])
+        unc = with_drivers + induced[:, t]
         occ = np.minimum(unc / supply[:, t], ceiling)
         dem = occ * supply[:, t]
         carry = am.rho * r
         r = carry + sig_u * (c * z[:, t] + math.sqrt(1 - c * c) * z2[:, t])
         x = np.clip(np.log(occ / occ_p), *x_range)
         pi = np.log1p(cpi[:, t]) if cpi is not None else 0.0
-        adr = adr_p * np.exp(pi + am.alpha + am.beta * x + r)
+        d_la = La[:, t + 1] - La[:, t]
+        adr = adr_p * np.exp(pi + am.alpha + am.beta * x + r + d_la)
         if trace is not None:
-            ind_ratio = np.log(unc / org)
+            ind_ratio = np.log(unc / with_drivers)
             cap_ratio = np.log(dem / unc)
             rec = {
                 "demand_trend": dm.mu, "demand_momentum": momentum.mean(), "demand_noise": noise.mean(),
-                "demand_shocks": dev[:, t].mean(), "demand_new_hotels": (ind_ratio - ind_ratio_p).mean(),
+                "demand_shocks": dev[:, t].mean(), "demand_drivers": (Ld[:, t + 1] - Ld[:, t]).mean(),
+                "demand_new_hotels": (ind_ratio - ind_ratio_p).mean(),
                 "demand_ceiling": (cap_ratio - cap_ratio_p).mean(), "demand_total": np.log(dem / dem_p).mean(),
                 "supply_total": np.log(supply[:, t] / s_p).mean(),
+                "supply_drivers": (lv.get("supply", np.zeros((n_paths, n_years + 1)))[:, t + 1]
+                                   - lv.get("supply", np.zeros((n_paths, n_years + 1)))[:, t]).mean(),
                 "adr_inflation": float(np.mean(pi)), "adr_real_drift": am.alpha, "adr_pricing_power": (am.beta * x).mean(),
-                "adr_carry_over": carry.mean(), "adr_noise": (r - carry).mean(), "adr_total": np.log(adr / adr_p).mean(),
+                "adr_carry_over": carry.mean(), "adr_noise": (r - carry).mean(), "adr_drivers": d_la.mean(),
+                "adr_total": np.log(adr / adr_p).mean(),
                 "share_at_ceiling": float((occ >= ceiling - 1e-12).mean()),
             }
             calm = dev[:, t] == 0
@@ -171,6 +184,8 @@ def project_years(dm: DemandModel, am: AdrModel, rng: np.random.Generator, n_pat
                 rec.update({"calm_share": calm.mean(), "calm_demand_total": g_d.mean(), "calm_supply_total": g_s.mean(),
                             "calm_occ_total": (g_d - g_s).mean(), "calm_adr_total": g_a.mean(),
                             "calm_demand_momentum": momentum[calm].mean(),
+                            "calm_demand_drivers": (Ld[:, t + 1] - Ld[:, t])[calm].mean(),
+                            "calm_adr_drivers": d_la[calm].mean(),
                             "calm_demand_new_hotels": (ind_ratio - ind_ratio_p)[calm].mean(),
                             "calm_demand_ceiling": (cap_ratio - cap_ratio_p)[calm].mean(),
                             "calm_adr_pricing_power": (am.beta * x)[calm].mean()})
@@ -185,7 +200,12 @@ def project_years(dm: DemandModel, am: AdrModel, rng: np.random.Generator, n_pat
 def simulate_baseline(monthly: pd.DataFrame, annual_hist: pd.DataFrame, dm: DemandModel, am: AdrModel,
                       sp: SupplyPaths, ceiling: dict, horizon: int, n_paths: int, rng: np.random.Generator,
                       covid_years: list[int], spread: float = 1.0, cpi_paths: np.ndarray | None = None,
-                      cpi0: np.ndarray | float = 0.0, trace: dict | None = None) -> Paths:
+                      cpi0: np.ndarray | float = 0.0, trace: dict | None = None, levels: dict | None = None) -> Paths:
+    """levels: driver level effects (log) by year Y0..Yn: "demand", "adr", "supply" [paths, horizon+1] and
+    "shock_mult" [paths, horizon] for Y1..Yn. In the stub year they apply to the simulated months only."""
+    zeros = np.zeros((n_paths, horizon + 1))
+    lv = levels or {}
+    Ld, La, Ls = lv.get("demand", zeros), lv.get("adr", zeros), lv.get("supply", zeros)
     m = monthly.sort_values("period_start").reset_index(drop=True)
     last = m["period_start"].iloc[-1]
     y0 = int(last.year)
@@ -218,15 +238,22 @@ def simulate_baseline(monthly: pd.DataFrame, annual_hist: pd.DataFrame, dm: Dema
         d_prev_m = rest_prev["demand"].to_numpy()
         a_prev_m = (rest_prev["revenue"] / rest_prev["demand"]).to_numpy()
         peak = np.array([ceiling["monthly_peak"].get(int(p.month), 0.97) for p in rest_prev["period_start"]])
-        d_m = d_prev_m[None, :] * np.exp(cal.trend_demand + ed)[:, None] + ind_m[:, stub_idx]
-        d_m = np.minimum(d_m, sup_m[:, stub_idx] * peak[None, :])
-        a_m = a_prev_m[None, :] * np.exp(cal.trend_adr + ea)[:, None]
+        cap_m = sup_m[:, stub_idx] * peak[None, :]
+        base_m = d_prev_m[None, :] * np.exp(cal.trend_demand + ed)[:, None]
+        d_nodrv = np.minimum(base_m + ind_m[:, stub_idx], cap_m)
+        d_m = np.minimum(base_m * np.exp(Ld[:, 0])[:, None] + ind_m[:, stub_idx], cap_m)
+        a_nodrv = a_prev_m[None, :] * np.exp(cal.trend_adr + ea)[:, None]
+        a_m = a_nodrv * np.exp(La[:, 0])[:, None]
         s_rest = sup_m[:, stub_idx].sum(axis=1)
         d_rest = d_m.sum(axis=1)
         r_rest = (d_m * a_m).sum(axis=1)
         s_y0 = ytd_s + s_rest
         d_y0 = ytd_d + d_rest
         rev_y0 = ytd_r + r_rest
+        d_y0_nodrv = ytd_d + d_nodrv.sum(axis=1)
+        rev_y0_nodrv = ytd_r + (d_nodrv * a_nodrv).sum(axis=1)
+        ld0 = np.log(d_y0 / d_y0_nodrv)
+        la0 = np.log((rev_y0 / d_y0) / (rev_y0_nodrv / d_y0_nodrv))
         ind_y0 = ind_m[:, stub_idx].sum(axis=1)
         stub_monthly = {
             "actual": [{"period": p.strftime("%Y-%m"), "occupancy": float(o), "adr": float(a)}
@@ -242,16 +269,23 @@ def simulate_baseline(monthly: pd.DataFrame, annual_hist: pd.DataFrame, dm: Dema
     else:
         s_y0 = np.full(n_paths, ytd_s); d_y0 = np.full(n_paths, ytd_d); rev_y0 = np.full(n_paths, ytd_r)
         ind_y0 = np.zeros(n_paths)
+        ld0 = la0 = np.zeros(n_paths)
 
     occ_y0 = d_y0 / s_y0
     adr_y0 = rev_y0 / d_y0
     years = [y0 + i for i in range(horizon + 1)]
     sup_y = np.stack([sup_m[:, month_years == y].sum(axis=1) for y in years[1:]], axis=1)
     ind_y = np.stack([ind_m[:, month_years == y].sum(axis=1) for y in years[1:]], axis=1)
+    sup_y = sup_y * np.exp(Ls[:, 1:])                      # supply drivers (e.g. projects missing from the export)
+    Ls_eff = Ls.copy(); Ls_eff[:, 0] = 0.0
+    lv_pass = {"demand": np.column_stack([ld0, Ld[:, 1:]]), "adr": np.column_stack([la0, La[:, 1:]]),
+               "supply": Ls_eff}
+    if "shock_mult" in lv:
+        lv_pass["shock_mult"] = lv["shock_mult"]
     occ, adr, dem, onset = project_years(
         dm, am, rng, n_paths, horizon, d_y0, np.full(n_paths, base["demand"]), ind_y0, s_y0, occ_y0,
         np.full(n_paths, base["occupancy"]), adr_y0, np.full(n_paths, base["adr"]), sup_y, ind_y,
-        ceiling["annual"], cpi_paths, spread, _x_range(annual_hist), cpi0, trace)
+        ceiling["annual"], cpi_paths, spread, _x_range(annual_hist), cpi0, trace, lv_pass)
     if trace is not None:
         trace["y0_supply"] = s_y0
         trace["sup_y"] = sup_y

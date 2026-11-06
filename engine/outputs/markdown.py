@@ -85,7 +85,12 @@ def render_backtest(out: dict) -> str:
     for r in b["variants"]:
         mark = " (chosen)" if r["variant"] == b["chosen"] else ""
         L.append(f"| {r['variant']}{mark} | {r['crps_all']:.4f} | {lvl(r['cov80_all'], 0)} | {r['crps_ex_covid']:.4f} | {lvl(r['cov80_ex_covid'], 0)} |")
-    L += ["", f"Spread calibration factor: {b['spread']:g}" + (" (applied)." if b["calibrated"] else " (not needed)."), ""]
+    sbh = b.get("spread_by_h") or []
+    if b["calibrated"] and sbh:
+        L += ["", "Band widening by years ahead (multiplier on the model's noise): "
+              + ", ".join(f"{h + 1} year{'s' if h else ''}: {k:g}" for h, k in enumerate(sbh)) + ".", ""]
+    else:
+        L += ["", "No band widening needed.", ""]
     L += ["## Coverage by horizon", "",
           "Share of actual outcomes inside the P10 to P90 band (target 80%) and P25 to P75 band (target 50%). "
           "'Ex-COVID' drops outcome years 2020 to 2022. Bias is the median forecast minus the actual, on average.", "",

@@ -1,0 +1,23 @@
+# Priors for forward-looking driver cards (Phase D).
+# Approved by the user on 2026-11-06.
+
+# Probability that an event takes place, by the status the evidence supports.
+# A card with event_status and no probability gets the default. A card whose
+# probability falls outside its band is flagged unless it explains why.
+event_status_ladder:
+  rumour:          {low: 0.10, high: 0.25, default: 0.175}
+  credible_report: {low: 0.30, high: 0.50, default: 0.40}
+  announced:       {low: 0.70, high: 0.90, default: 0.80}
+  tickets_on_sale: {low: 0.85, high: 0.95, default: 0.90}
+  held:            {low: 1.00, high: 1.00, default: 1.00}
+  cancelled:       {low: 0.00, high: 0.00, default: 0.00}
+
+# Event status taken from news needs this many independent sources.
+min_sources_for_status: 2
+
+# Drivers may raise the annual shock probability (affects: shock_probability),
+# approved by the user on 2026-11-06. The multiplier is capped here.
+shock_multiplier_cap: 5.0
+
+# Proposed (not yet approved) cards are included in provisional runs.
+include_proposed: true

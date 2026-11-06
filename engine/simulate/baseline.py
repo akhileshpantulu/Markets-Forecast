@@ -113,10 +113,12 @@ def calibrate_stub(monthly: pd.DataFrame, cutoff: int, covid_years: list[int], l
 def project_years(dm: DemandModel, am: AdrModel, rng: np.random.Generator, n_paths: int, n_years: int,
                   d0: np.ndarray, d_prev: np.ndarray, induced0: np.ndarray, s0: np.ndarray, occ0: np.ndarray,
                   occ_prev: np.ndarray, adr0: np.ndarray, adr_prev: np.ndarray, supply: np.ndarray, induced: np.ndarray,
-                  ceiling: float, cpi: np.ndarray | None = None, spread: float = 1.0, x_range: tuple[float, float] = (-0.15, 0.15)):
+                  ceiling: float, cpi: np.ndarray | None = None, spread: float = 1.0, x_range: tuple[float, float] = (-0.15, 0.15),
+                  cpi0: np.ndarray | float = 0.0):
     """Annual projection from an origin year (index 0 = origin, already known per path).
 
     supply, induced: [paths, n_years] annual room nights for years 1..n.
+    cpi: [paths, n_years] inflation (decimal) in CPI mode; cpi0: origin-year inflation.
     Returns occ, adr, demand arrays [paths, n_years] and shock onset codes.
     """
     z = draw_innovations(dm, rng, (n_paths, n_years))
@@ -128,7 +130,7 @@ def project_years(dm: DemandModel, am: AdrModel, rng: np.random.Generator, n_pat
     g_lag = np.log(d0 / d_prev)
     org = d0 - induced0
     dlog_occ0 = np.log(occ0 / occ_prev)
-    pi0 = 0.0
+    pi0 = np.log1p(cpi0) if cpi is not None else 0.0
     r = np.log(adr0 / adr_prev) - pi0 - am.alpha - am.beta * np.clip(dlog_occ0, *x_range)
     occ_out = np.empty((n_paths, n_years)); adr_out = np.empty((n_paths, n_years)); dem_out = np.empty((n_paths, n_years))
     occ_p, adr_p, gn = occ0, adr0, g_lag
@@ -140,7 +142,7 @@ def project_years(dm: DemandModel, am: AdrModel, rng: np.random.Generator, n_pat
         dem = occ * supply[:, t]
         r = am.rho * r + sig_u * (c * z[:, t] + math.sqrt(1 - c * c) * z2[:, t])
         x = np.clip(np.log(occ / occ_p), *x_range)
-        pi = cpi[:, t] if cpi is not None else 0.0
+        pi = np.log1p(cpi[:, t]) if cpi is not None else 0.0
         adr = adr_p * np.exp(pi + am.alpha + am.beta * x + r)
         occ_out[:, t], adr_out[:, t], dem_out[:, t] = occ, adr, dem
         occ_p, adr_p = occ, adr
@@ -149,7 +151,8 @@ def project_years(dm: DemandModel, am: AdrModel, rng: np.random.Generator, n_pat
 
 def simulate_baseline(monthly: pd.DataFrame, annual_hist: pd.DataFrame, dm: DemandModel, am: AdrModel,
                       sp: SupplyPaths, ceiling: dict, horizon: int, n_paths: int, rng: np.random.Generator,
-                      covid_years: list[int], spread: float = 1.0, cpi_paths: np.ndarray | None = None) -> Paths:
+                      covid_years: list[int], spread: float = 1.0, cpi_paths: np.ndarray | None = None,
+                      cpi0: np.ndarray | float = 0.0) -> Paths:
     m = monthly.sort_values("period_start").reset_index(drop=True)
     last = m["period_start"].iloc[-1]
     y0 = int(last.year)
@@ -215,7 +218,7 @@ def simulate_baseline(monthly: pd.DataFrame, annual_hist: pd.DataFrame, dm: Dema
     occ, adr, dem, onset = project_years(
         dm, am, rng, n_paths, horizon, d_y0, np.full(n_paths, base["demand"]), ind_y0, s_y0, occ_y0,
         np.full(n_paths, base["occupancy"]), adr_y0, np.full(n_paths, base["adr"]), sup_y, ind_y,
-        ceiling["annual"], cpi_paths, spread, _x_range(annual_hist))
+        ceiling["annual"], cpi_paths, spread, _x_range(annual_hist), cpi0)
     return Paths(years, y0 - 1, np.column_stack([occ_y0, occ]), np.column_stack([adr_y0, adr]),
                  np.column_stack([d_y0, dem]), np.column_stack([s_y0, sup_y]), base, stub_monthly,
                  np.column_stack([np.zeros(n_paths, dtype=np.int8), onset]), notes)

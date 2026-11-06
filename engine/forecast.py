@@ -58,12 +58,44 @@ def load_inputs(cfg: MarketConfig, config_dir=None) -> tuple[dict, dict, dict]:
     ppri = load_yaml(d / "pipeline_priors.yaml")
     macro_path = d / "macro" / f"{cfg.country_iso}.yaml"
     macro = load_yaml(macro_path) if macro_path.exists() else {}
+    gen = d / "macro" / "generated" / f"{cfg.country_iso}.yaml"
+    if gen.exists():
+        g = load_yaml(gen)
+        # Fetched, sourced public data replaces manual entries that are gaps or unverified.
+        if (g.get("cpi_history") or {}).get("values"):
+            macro["cpi_history"] = g["cpi_history"]
+        if (g.get("cpi_projections") or {}).get("values"):
+            macro["cpi_projections"] = g["cpi_projections"]
+        if g.get("real_gdp_growth"):
+            macro["real_gdp_growth"] = g["real_gdp_growth"]
     return priors, ppri, macro
 
 
 def cpi_history(macro: dict) -> dict[int, float] | None:
     vals = (macro.get("cpi_history") or {}).get("values") or {}
     return {int(k): float(v) for k, v in vals.items()} or None
+
+
+def cpi_rate(macro: dict, year: int) -> float | None:
+    hist = cpi_history(macro) or {}
+    if year in hist:
+        return hist[year]
+    proj = {int(v["year"]): float(v["rate"]) for v in (macro.get("cpi_projections") or {}).get("values", [])}
+    if year in proj:
+        return proj[year]
+    if proj:
+        beyond = (macro.get("cpi_projections") or {}).get("beyond_last_year") or {}
+        return float(beyond["rate"]) if beyond.get("rate") is not None else proj[max(proj)]
+    return None
+
+
+def cpi_paths(macro: dict, years: list[int], n: int, rng: np.random.Generator) -> np.ndarray | None:
+    """Inflation per path and year: the projected path plus independent normal noise."""
+    rates = [cpi_rate(macro, y) for y in years]
+    if any(r is None for r in rates):
+        return None
+    sd = float((macro.get("cpi_projections") or {}).get("sampling_sd", 0.008))
+    return np.asarray(rates)[None, :] + rng.normal(0, sd, (n, len(years)))
 
 
 def run_forecast(res: IngestResult, cfg: MarketConfig, priors: dict, ppri: dict, macro: dict,
@@ -75,7 +107,7 @@ def run_forecast(res: IngestResult, cfg: MarketConfig, priors: dict, ppri: dict,
     covid = cfg.estimation.covid_years
     hist = analyse_history(res.monthly_spliced, res.growth_sample, cfg, cpi)
 
-    bt = run_backtest(res.monthly_spliced, res.growth_sample, hist.annual, cfg, priors, seed, backtest_paths)
+    bt = run_backtest(res.monthly_spliced, res.growth_sample, hist.annual, cfg, priors, seed, backtest_paths, cpi=cpi)
     include_covid = bt.chosen.startswith("with_covid")
     resid = bt.chosen.split("/")[1]
     dm = fit_demand(res.growth_sample, priors, covid, include_covid, resid)
@@ -86,11 +118,19 @@ def run_forecast(res: IngestResult, cfg: MarketConfig, priors: dict, ppri: dict,
     y0 = int(last.year)
     months = pd.date_range(last + pd.DateOffset(months=1), pd.Timestamp(year=y0 + cfg.horizon_years, month=12, day=1), freq="MS")
 
+    use_cpi = am.mode == "cpi"
+    if cpi and not use_cpi:
+        raise ValueError("CPI history loaded but the ADR model is not in CPI mode")
+
     def simulate(model, k):
         rng = np.random.default_rng(seed)
         sup = simulate_supply(res.pipeline, res.monthly, months, ppri, n_paths, rng)
+        cp = cpi_paths(macro, [y0 + i for i in range(1, cfg.horizon_years + 1)], n_paths, rng) if use_cpi else None
+        c0 = cpi_rate(macro, y0) if use_cpi else 0.0
+        if use_cpi and (cp is None or c0 is None):
+            raise ValueError("CPI mode needs inflation for the stub year and every forecast year")
         return sup, simulate_baseline(res.monthly_spliced, hist.annual, model, am, sup, hist.ceiling, cfg.horizon_years,
-                                      n_paths, rng, covid, k)
+                                      n_paths, rng, covid, k, cp, c0)
 
     sup, paths = simulate(dm, bt.spread)
     summary = summarise(paths)
@@ -128,6 +168,10 @@ def run_forecast(res: IngestResult, cfg: MarketConfig, priors: dict, ppri: dict,
                  "variant": bt.chosen, "spread": bt.spread, "calibrated": bt.calibrated, "adr_mode": am.mode,
                  "status": "Provisional baseline: no drivers or scenarios", "seconds": None,
                  "currency": cfg.currency},
+        "macro": {"adr_mode": am.mode,
+                  "cpi_path": {str(y): cpi_rate(macro, y) for y in range(y0, y0 + cfg.horizon_years + 1)} if use_cpi else None,
+                  "cpi_source": (macro.get("cpi_history") or {}).get("source"),
+                  "cpi_projection_note": (macro.get("cpi_projections") or {}).get("assumption")},
         "summary": summary,
         "positions": positions,
         "covid_sensitivity": {"default": "exclude" if not include_covid else "include", "by_year": sens},

@@ -71,8 +71,23 @@ def _annual_levels(monthly: pd.DataFrame) -> pd.DataFrame:
     return a
 
 
+NAIVE_CPI_TARGET = 0.02
+NAIVE_CPI_HALF_LIFE = 1.0
+NAIVE_CPI_SD = 0.01
+
+
+def naive_cpi_path(cpi: dict[int, float], origin: int, H: int, n: int, rng: np.random.Generator) -> np.ndarray:
+    """Inflation forecast known at the origin: the last observed rate decaying to 2% (half-life one year),
+    plus noise. Avoids giving the backtest knowledge of future inflation."""
+    last = cpi.get(origin, NAIVE_CPI_TARGET)
+    decay = 0.5 ** (np.arange(1, H + 1) / NAIVE_CPI_HALF_LIFE)
+    mean = NAIVE_CPI_TARGET + (last - NAIVE_CPI_TARGET) * decay
+    return mean[None, :] + rng.normal(0, NAIVE_CPI_SD, (n, H))
+
+
 def run_backtest(monthly_spliced: pd.DataFrame, sample: pd.DataFrame, annual_hist: pd.DataFrame, cfg: MarketConfig,
-                 priors: dict, seed: int, n_paths: int | None = None, max_h: int = 5) -> BacktestResult:
+                 priors: dict, seed: int, n_paths: int | None = None, max_h: int = 5,
+                 cpi: dict[int, float] | None = None) -> BacktestResult:
     pb = priors["backtest"]
     n_paths = n_paths or pb["paths"]
     lv = _annual_levels(monthly_spliced)
@@ -90,7 +105,8 @@ def run_backtest(monthly_spliced: pd.DataFrame, sample: pd.DataFrame, annual_his
             a_T = annual_hist[annual_hist["year"] <= T]
             try:
                 dm = fit_demand(s_T, priors, cfg.estimation.covid_years, var.include_covid, var.residual_type)
-                am = fit_adr(a_T, dm, s_T, priors)
+                cpi_T = {y: v for y, v in cpi.items() if y <= T} if cpi else None
+                am = fit_adr(a_T, dm, s_T, priors, cpi_T)
             except Exception:  # too little data at this origin for this variant
                 continue
             ceil = occupancy_ceiling(monthly_spliced[monthly_spliced["period_start"].dt.year <= T], cfg)["annual"]
@@ -109,9 +125,11 @@ def run_backtest(monthly_spliced: pd.DataFrame, sample: pd.DataFrame, annual_his
             }
             rng = np.random.default_rng([seed, vi, T, int(round(k * 100))])
             one = lambda v: np.full(n_paths, float(v))
+            cp = naive_cpi_path(cpi, T, H, n_paths, rng) if (cpi and am.mode == "cpi") else None
+            c0 = cpi.get(T, NAIVE_CPI_TARGET) if cp is not None else 0.0
             occ, adr, dem, _ = project_years(dm, am, rng, n_paths, H, one(o["demand"]), one(p["demand"]), one(0.0),
                                              one(o["supply"]), one(o["occupancy"]), one(p["occupancy"]),
-                                             one(o["adr"]), one(p["adr"]), sup, ind, ceil, None, k, _x_range(a_T))
+                                             one(o["adr"]), one(p["adr"]), sup, ind, ceil, cp, k, _x_range(a_T), c0)
             prev_occ = np.column_stack([one(o["occupancy"]), occ[:, :-1]])
             prev_adr = np.column_stack([one(o["adr"]), adr[:, :-1]])
             prev_dem = np.column_stack([one(o["demand"]), dem[:, :-1]])
@@ -139,6 +157,8 @@ def run_backtest(monthly_spliced: pd.DataFrame, sample: pd.DataFrame, annual_his
     rec = pd.DataFrame(rows)
     notes = ["Supply is realised supply (conditioning): no historical pipeline snapshots exist.",
              "Drivers cannot be backtested point in time; this tests the baseline engine only.",
+             ("ADR in CPI mode: inflation at each origin is forecast naively (last observed rate decaying to 2%, "
+              "half-life one year, sd 1 point), so the backtest does not see future inflation.") if cpi else
              "ADR is in nominal mode in the backtest (CPI history not loaded)."]
     if rec.empty:
         return BacktestResult(rec, origins, "ex_covid/bootstrap", 1.0, False, pd.DataFrame(), pd.DataFrame(),

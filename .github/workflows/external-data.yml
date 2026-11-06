@@ -1,0 +1,46 @@
+# Fetches the public data connectors in config/external_sources.yaml (Eurostat,
+# IMF, ECB, INE) and commits the raw responses with provenance to
+# data/external/, plus derived model inputs to config/macro/generated/.
+# Public statistics only. No CoStar data is read or written here.
+name: external-data
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 5 * * 1"        # Mondays 05:17 UTC
+  push:
+    paths:
+      - config/external_sources.yaml
+      - engine/external/**
+      - .github/workflows/external-data.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: external-data
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Fetch sources
+        run: python -m engine.external.fetch
+      - name: Build model inputs
+        run: python -m engine.external.build
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/external config/macro/generated
+          if git diff --cached --quiet; then echo "No changes"; exit 0; fi
+          git commit -m "Update external public data [external-data]"
+          for i in 1 2 3; do git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" && exit 0; sleep 5; done
+          exit 1

@@ -1,0 +1,115 @@
+# Public data connectors supplied by the user on 2026-11-06.
+# The GitHub Actions workflow .github/workflows/external-data.yml fetches each
+# URL and stores the raw response with provenance in data/external/<id>.json.
+# These are public statistics (no CoStar data), so they may be committed.
+# URLs are verbatim from the user unless a note says otherwise.
+sources:
+  # ---- Tourism (Eurostat) ----
+  - id: eurostat_tour_occ_nim
+    publisher: Eurostat
+    title: Nights spent at tourist accommodation establishments, monthly (hotels, NACE I55.1)
+    format: jsonstat
+    use: [reference_demand, tourism_indicator]
+    url: https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/tour_occ_nim?format=JSON&lang=EN&unit=NR&nace_r2=I551&geo=ES&geo=FR&geo=IT&geo=EL&geo=EU27_2020&lastTimePeriod=144
+  - id: eurostat_tour_occ_arm
+    publisher: Eurostat
+    title: Arrivals at tourist accommodation establishments, monthly (hotels)
+    format: jsonstat
+    use: [tourism_indicator]
+    url: https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/tour_occ_arm?format=JSON&lang=EN&unit=NR&nace_r2=I551&geo=ES&geo=FR&geo=IT&geo=EL&geo=EU27_2020&lastTimePeriod=144
+  - id: eurostat_tour_occ_mnor
+    publisher: Eurostat
+    title: Net occupancy rate of bed-places and bedrooms, monthly (hotels)
+    format: jsonstat
+    use: [reference_occupancy]
+    url: https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/tour_occ_mnor?format=JSON&lang=EN&nace_r2=I551&geo=ES&geo=FR&geo=IT&geo=EL&geo=EU27_2020&lastTimePeriod=144
+  - id: eurostat_tour_occ_ninc
+    publisher: Eurostat
+    title: Nights spent at tourist accommodation establishments by country of residence of the tourist
+    format: jsonstat
+    use: [source_markets]
+    url: https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/tour_occ_ninc?format=JSON&lang=EN&lastTimePeriod=5
+  - id: eurostat_tour_ce_oarc
+    publisher: Eurostat
+    title: tour_ce_oarc (as supplied by the user)
+    format: jsonstat
+    use: [tourism_indicator]
+    url: https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/tour_ce_oarc?format=JSON&lang=EN&lastTimePeriod=5
+  # ---- Air transport (Eurostat) ----
+  - id: eurostat_avia_paoa
+    publisher: Eurostat
+    title: Air passenger transport by reporting airport, monthly (passengers carried), incl. Paris CDG (FR_LFPG) and Orly (FR_LFPO)
+    format: jsonstat
+    use: [air_access]
+    url: https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/avia_paoa?format=JSON&lang=EN&freq=M&unit=PAS&tra_meas=PAS_CRD&tra_cov=TOTAL&schedule=TOT&rep_airp=ES_LEMD&rep_airp=ES_LEBL&rep_airp=ES_LEPA&rep_airp=FR_LFPG&rep_airp=FR_LFPO&rep_airp=IT_LIRF&rep_airp=IT_LIMC&rep_airp=EL_LGAV&lastTimePeriod=144
+  - id: eurostat_avia_paoc
+    publisher: Eurostat
+    title: Air passenger transport by reporting country, monthly (total and extra-EU)
+    format: jsonstat
+    use: [air_access]
+    url: https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/avia_paoc?format=JSON&lang=EN&freq=M&unit=PAS&tra_meas=PAS_CRD&schedule=TOT&tra_cov=TOTAL&tra_cov=INTL_XEU27_2020&geo=ES&geo=FR&geo=IT&geo=EL&lastTimePeriod=144
+  - id: eurostat_avia_paoac
+    publisher: Eurostat
+    title: Air passenger transport between reporting airport and partner airports, monthly (Madrid Barajas)
+    format: jsonstat
+    use: [air_access]
+    url: https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/avia_paoac?format=JSON&lang=EN&freq=M&rep_airp=ES_LEMD&lastTimePeriod=24
+  # ---- Prices (Eurostat) ----
+  - id: eurostat_prc_hicp_minr_cp112
+    publisher: Eurostat
+    title: HICP accommodation services (COICOP CP112), monthly annual rate of change
+    format: jsonstat
+    use: [accommodation_prices]
+    url: https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/prc_hicp_minr?format=JSON&lang=EN&unit=RCH_A&coicop18=CP112&geo=ES&geo=FR&geo=IT&geo=EL&geo=EA&lastTimePeriod=144
+  # ---- Macro (IMF World Economic Outlook via DataMapper) ----
+  - id: imf_ngdp_rpch
+    publisher: International Monetary Fund
+    title: Real GDP growth, annual percent change (World Economic Outlook)
+    format: imf_datamapper
+    use: [source_market_gdp]
+    url: https://www.imf.org/external/datamapper/api/v1/NGDP_RPCH/GBR/FRA/ESP/ITA/GRC/CAN/USA/DEU?periods=2015,2016,2017,2018,2019,2020,2021,2022,2023,2024,2025,2026,2027,2028,2029,2030,2031
+  - id: imf_pcpipch
+    publisher: International Monetary Fund
+    title: Inflation, average consumer prices, annual percent change (World Economic Outlook)
+    format: imf_datamapper
+    use: [cpi]
+    url: https://www.imf.org/external/datamapper/api/v1/PCPIPCH/GBR/FRA/ESP/ITA/GRC/CAN/USA/DEU?periods=2015,2016,2017,2018,2019,2020,2021,2022,2023,2024,2025,2026,2027,2028,2029,2030,2031
+  - id: imf_pcpipch_long
+    publisher: International Monetary Fund
+    title: Inflation, average consumer prices, annual percent change (World Economic Outlook), 1996 onward
+    format: imf_datamapper
+    use: [cpi]
+    note: Same connector as imf_pcpipch with periods extended back to 1996 to cover the hotel history (added by Claude).
+    url: https://www.imf.org/external/datamapper/api/v1/PCPIPCH/FRA/ESP/ITA/GRC/DEU/GBR/USA/CAN?periods=1996,1997,1998,1999,2000,2001,2002,2003,2004,2005,2006,2007,2008,2009,2010,2011,2012,2013,2014,2015,2016,2017,2018,2019,2020,2021,2022,2023,2024,2025,2026,2027,2028,2029,2030,2031
+  - id: imf_indicators
+    publisher: International Monetary Fund
+    title: DataMapper indicator catalogue
+    format: json
+    use: [catalogue]
+    url: https://www.imf.org/external/datamapper/api/v1/indicators
+  # ---- FX (ECB) ----
+  - id: ecb_exr_monthly
+    publisher: European Central Bank
+    title: Euro reference exchange rates, monthly average (USD, GBP, CAD, CHF, CNY, JPY)
+    format: ecb_csv
+    use: [fx]
+    url: https://data-api.ecb.europa.eu/service/data/EXR/M.USD+GBP+CAD+CHF+CNY+JPY.EUR.SP00.A?format=csvdata&startPeriod=2010-01
+  # ---- Spain hotel survey (INE) ----
+  - id: ine_2058
+    publisher: Instituto Nacional de Estadistica (Spain)
+    title: INE Tempus table 2058 (hotel occupancy survey)
+    format: ine_json
+    use: [reference_demand_es]
+    url: https://servicios.ine.es/wstempus/js/es/DATOS_TABLA/2058?tip=AM
+  - id: ine_2059
+    publisher: Instituto Nacional de Estadistica (Spain)
+    title: INE Tempus table 2059 (hotel occupancy survey)
+    format: ine_json
+    use: [reference_demand_es]
+    url: https://servicios.ine.es/wstempus/js/es/DATOS_TABLA/2059?tip=AM
+  - id: ine_46298
+    publisher: Instituto Nacional de Estadistica (Spain)
+    title: INE Tempus table 46298
+    format: ine_json
+    use: [reference_demand_es]
+    url: https://servicios.ine.es/wstempus/js/es/DATOS_TABLA/46298?tip=AM

@@ -42,5 +42,10 @@ ramp_up:
   years_to_stabilise: 3
   demand_share_by_year: [0.65, 0.85, 1.00]
 
+# Share of the new rooms' stabilised demand that is new to the market (brings its
+# own demand) rather than taken from existing hotels. Reopened hotels had their
+# own customers before closing, so a higher share is assumed for them.
 induced_demand:
   share_of_new_rooms: {dist: triangular, low: 0.0, mode: 0.3, high: 0.6}
+  share_of_reopened_rooms: {dist: triangular, low: 0.2, mode: 0.5, high: 0.8}
+  reference_occupancy: trailing_12m   # occupancy the stabilised new rooms are assumed to reach

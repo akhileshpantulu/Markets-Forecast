@@ -5,18 +5,33 @@
 status: assumption
 
 demand:
-  mu_log_growth: {mean: 0.010, sd: 0.020}        # long-run annual log demand growth
+  mu_log_growth: {mean: 0.010, sd: 0.020}        # long-run annual log demand growth in normal years
   phi: {mean: 0.20, sd: 0.30, lower: -0.5, upper: 0.9}
-  residual_sd: {mean: 0.040, sd: 0.020}
+  residual_sd: {mean: 0.040, pseudo_obs: 2}      # sd shrinks toward this with the weight of 2 observations
 
 shock:
-  # Annual probability of a market-wide demand shock. Beta prior, mean about 0.10.
-  p_shock: {dist: beta, a: 1.5, b: 13.5}
+  # A year is a shock year when its log demand growth falls more than
+  # threshold_robust_sd robust standard deviations below the median.
+  threshold_robust_sd: 2.0
+  # Shock years falling further than this (log) are "severe" (COVID-scale).
+  severe_log_deviation: -0.5
+  # Years after a shock whose growth forms its recovery profile.
+  max_recovery_years: 2
+  # Annual probability of each class: Beta prior, updated with the count of
+  # shock years in the market's history.
+  moderate: {a: 1.5, b: 13.5}                    # prior mean 10% a year
+  severe: {a: 0.5, b: 49.5}                      # prior mean 1% a year
 
 adr:
   beta_pricing_power: {mean: 0.50, sd: 0.50, lower: 0.0}
-  real_residual_phi: {mean: 0.30, sd: 0.30, lower: -0.5, upper: 0.9}
-  real_residual_sd: {mean: 0.040, sd: 0.020}
+  residual_phi: {mean: 0.30, sd: 0.30, lower: -0.5, upper: 0.9}
+  residual_sd: {mean: 0.040, pseudo_obs: 2}
 
 correlation:
   demand_adr_residual: {mean: 0.30, sd: 0.30}
+
+backtest:
+  first_origin_min_years: 8                      # usable growth observations needed before the first origin
+  paths: 2000
+  target_coverage: 0.80
+  calibrate_if_outside: [0.70, 0.90]

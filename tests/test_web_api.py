@@ -25,7 +25,7 @@ def test_app_info_lists_slots_and_markets():
 
 
 def test_run_ingest_roundtrip(perf_bytes, pipe_bytes):
-    out = json.loads(run_ingest(_files(perf_bytes, pipe_bytes), ADHOC, today="2026-07-20"))
+    out = json.loads(run_ingest(_files(perf_bytes, pipe_bytes), ADHOC, today="2026-07-20", paths=2000))
     assert out["meta"]["passed"] is True
     assert out["meta"]["last_month"] == "2026-06" and out["meta"]["stub_actual_months"] == 6
     assert len(out["monthly"]) == 258 and out["monthly"][0]["period"] == "2005-01"
@@ -34,11 +34,14 @@ def test_run_ingest_roundtrip(perf_bytes, pipe_bytes):
     assert {c["id"] for c in out["checks"]["performance"]} >= {"P07", "P18"}
     assert out["breaks"] == []
     assert "Status: **PASSED**" in out["validation_md"]
+    fc = out["forecast"]
+    assert [r["year"] for r in fc["summary"]] == list(range(2026, 2032))
+    assert "Baseline forecast" in fc["reports"]["baseline_md"] and "forecast_error" not in out
 
 
 def test_disabled_slots_are_ignored(perf_bytes, pipe_bytes):
     files = _files(perf_bytes, pipe_bytes) + [{"slot": "airport", "filename": "x.xlsx", "data": b"junk"}]
-    out = json.loads(run_ingest(files, ADHOC, today="2026-07-20"))
+    out = json.loads(run_ingest(files, ADHOC, today="2026-07-20", forecast=False))
     assert out["meta"]["passed"] is True
     assert all(f["filename"] != "x.xlsx" for f in out["files"])
 

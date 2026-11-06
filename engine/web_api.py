@@ -22,6 +22,8 @@ from engine.ingest.core import IngestResult, InputFile, ingest_files
 from engine.ingest.mapping import load_mappings
 from engine.ingest.reader import read_table
 from engine.ingest.report import render_validation
+from engine.forecast import load_inputs, run_forecast
+from engine.outputs.markdown import render_backtest, render_baseline, render_history
 
 # Upload slots on the page. Slots marked enabled=False are shown but not yet accepted.
 SLOTS = [
@@ -149,14 +151,28 @@ def result_to_dict(res: IngestResult, cfg: MarketConfig, today: date) -> dict:
     return out
 
 
-def run_ingest(files: list[dict], market: dict, today: str | None = None) -> str:
-    """files: [{"slot": "performance"|"pipeline"|..., "filename": str, "data": bytes}]. Returns JSON text."""
+def run_ingest(files: list[dict], market: dict, today: str | None = None, forecast: bool = True,
+               paths: int | None = None) -> str:
+    """files: [{"slot": "performance"|"pipeline"|..., "filename": str, "data": bytes}]. Returns JSON text.
+
+    When validation passes and forecast is True, the baseline forecast (Phases B and C) runs too.
+    """
     day = date.fromisoformat(today) if today else date.today()
     enabled = {s["id"] for s in SLOTS if s["enabled"]}
     inputs = [InputFile(f["slot"], f["filename"], _as_bytes(f["data"])) for f in files if f["slot"] in enabled]
     cfg = resolve_config(market)
     res = ingest_files(inputs, cfg, load_mappings(), today=day)
-    return json.dumps(result_to_dict(res, cfg, day), allow_nan=False)
+    out = result_to_dict(res, cfg, day)
+    if forecast and res.passed:
+        try:
+            priors, ppri, macro = load_inputs(cfg)
+            fc = run_forecast(res, cfg, priors, ppri, macro, n_paths=paths)
+            fc["reports"] = {"history_md": render_history(fc, cfg), "backtest_md": render_backtest(fc),
+                             "baseline_md": render_baseline(fc, cfg)}
+            out["forecast"] = fc
+        except Exception as exc:  # report, do not hide, a forecast failure
+            out["forecast_error"] = f"{type(exc).__name__}: {exc}"
+    return json.dumps(out, allow_nan=False)
 
 
 def app_info() -> str:

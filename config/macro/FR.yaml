@@ -1,0 +1,32 @@
+# Macro inputs for France. Public data only (no CoStar data).
+# Every value carries a source. Values without a verified primary source are
+# not entered; the engine records the gap and uses its fallback.
+country_iso: FR
+country: France
+
+cpi_history:
+  measure: HICP all items, annual average rate of change (Eurostat prc_hicp_ainr / prc_hicp_aind, CP00, FR)
+  status: gap
+  note: >
+    Not loaded. On 2026-11-06 the session network blocked ec.europa.eu, www.insee.fr,
+    api.worldbank.org, data-api.ecb.europa.eu, sdmx.oecd.org and fred.stlouisfed.org.
+    Until this series is loaded, ADR is modelled in nominal terms and real ADR is not reported.
+  source: {url: "https://ec.europa.eu/eurostat/databrowser/view/prc_hicp_aind/default/table?lang=en", publisher: Eurostat}
+  values: {}          # year: rate as a decimal, e.g. 2019: 0.013
+
+cpi_projections:
+  # Used in CPI mode only. Recorded from a web search summary on 2026-11-06;
+  # verify against the publications before relying on them.
+  status: unverified
+  values:
+    - {year: 2026, rate: 0.023, publisher: Banque de France, title: "Macroeconomic interim projections, September 2026",
+       url: "https://www.banque-france.fr/en/publications-and-statistics/publications/macroeconomic-interim-projections-september-2026",
+       published: 2026-09, accessed: 2026-11-06}
+    - {year: 2027, rate: 0.017, publisher: Banque de France, title: "Macroeconomic projections, June 2026",
+       url: "https://www.banque-france.fr/en/publications-and-statistics/publications/macroeconomic-projections-june-2026",
+       published: 2026-06, accessed: 2026-11-06}
+    - {year: 2028, rate: 0.017, publisher: Banque de France, title: "Macroeconomic projections, June 2026",
+       url: "https://www.banque-france.fr/en/publications-and-statistics/publications/macroeconomic-projections-june-2026",
+       published: 2026-06, accessed: 2026-11-06}
+  beyond_last_year: {assumption: "Revert to the ECB 2% medium-term target", rate: 0.02}
+  sampling_sd: 0.008   # assumption: spread around the projected path, per year

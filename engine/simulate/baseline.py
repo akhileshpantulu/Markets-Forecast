@@ -114,7 +114,7 @@ def project_years(dm: DemandModel, am: AdrModel, rng: np.random.Generator, n_pat
                   d0: np.ndarray, d_prev: np.ndarray, induced0: np.ndarray, s0: np.ndarray, occ0: np.ndarray,
                   occ_prev: np.ndarray, adr0: np.ndarray, adr_prev: np.ndarray, supply: np.ndarray, induced: np.ndarray,
                   ceiling: float, cpi: np.ndarray | None = None, spread: float = 1.0, x_range: tuple[float, float] = (-0.15, 0.15),
-                  cpi0: np.ndarray | float = 0.0):
+                  cpi0: np.ndarray | float = 0.0, trace: dict | None = None):
     """Annual projection from an origin year (index 0 = origin, already known per path).
 
     supply, induced: [paths, n_years] annual room nights for years 1..n.
@@ -134,16 +134,49 @@ def project_years(dm: DemandModel, am: AdrModel, rng: np.random.Generator, n_pat
     r = np.log(adr0 / adr_prev) - pi0 - am.alpha - am.beta * np.clip(dlog_occ0, *x_range)
     occ_out = np.empty((n_paths, n_years)); adr_out = np.empty((n_paths, n_years)); dem_out = np.empty((n_paths, n_years))
     occ_p, adr_p, gn = occ0, adr0, g_lag
+    # Ratios at the origin for the trace: total/organic demand, and capped/uncapped demand.
+    ind_ratio_p = np.log(d0 / np.maximum(org, 1e-9))
+    cap_ratio_p = np.zeros(n_paths)
+    dem_p, s_p = d0, s0
     for t in range(n_years):
-        gn = dm.mu + dm.phi * (gn - dm.mu) + sig * z[:, t]
+        momentum = dm.phi * (gn - dm.mu)
+        noise = sig * z[:, t]
+        gn = dm.mu + momentum + noise
         org = org * np.exp(gn + dev[:, t])
         unc = org + induced[:, t]
         occ = np.minimum(unc / supply[:, t], ceiling)
         dem = occ * supply[:, t]
-        r = am.rho * r + sig_u * (c * z[:, t] + math.sqrt(1 - c * c) * z2[:, t])
+        carry = am.rho * r
+        r = carry + sig_u * (c * z[:, t] + math.sqrt(1 - c * c) * z2[:, t])
         x = np.clip(np.log(occ / occ_p), *x_range)
         pi = np.log1p(cpi[:, t]) if cpi is not None else 0.0
         adr = adr_p * np.exp(pi + am.alpha + am.beta * x + r)
+        if trace is not None:
+            ind_ratio = np.log(unc / org)
+            cap_ratio = np.log(dem / unc)
+            rec = {
+                "demand_trend": dm.mu, "demand_momentum": momentum.mean(), "demand_noise": noise.mean(),
+                "demand_shocks": dev[:, t].mean(), "demand_new_hotels": (ind_ratio - ind_ratio_p).mean(),
+                "demand_ceiling": (cap_ratio - cap_ratio_p).mean(), "demand_total": np.log(dem / dem_p).mean(),
+                "supply_total": np.log(supply[:, t] / s_p).mean(),
+                "adr_inflation": float(np.mean(pi)), "adr_real_drift": am.alpha, "adr_pricing_power": (am.beta * x).mean(),
+                "adr_carry_over": carry.mean(), "adr_noise": (r - carry).mean(), "adr_total": np.log(adr / adr_p).mean(),
+                "share_at_ceiling": float((occ >= ceiling - 1e-12).mean()),
+            }
+            calm = dev[:, t] == 0
+            if calm.any():
+                g_d = np.log(dem / dem_p)[calm]
+                g_s = np.log(supply[:, t] / s_p)[calm]
+                g_a = np.log(adr / adr_p)[calm]
+                rec.update({"calm_share": calm.mean(), "calm_demand_total": g_d.mean(), "calm_supply_total": g_s.mean(),
+                            "calm_occ_total": (g_d - g_s).mean(), "calm_adr_total": g_a.mean(),
+                            "calm_demand_momentum": momentum[calm].mean(),
+                            "calm_demand_new_hotels": (ind_ratio - ind_ratio_p)[calm].mean(),
+                            "calm_demand_ceiling": (cap_ratio - cap_ratio_p)[calm].mean(),
+                            "calm_adr_pricing_power": (am.beta * x)[calm].mean()})
+            trace.setdefault("years", []).append({k: float(v) for k, v in rec.items()})
+            ind_ratio_p, cap_ratio_p = ind_ratio, cap_ratio
+        dem_p, s_p = dem, supply[:, t]
         occ_out[:, t], adr_out[:, t], dem_out[:, t] = occ, adr, dem
         occ_p, adr_p = occ, adr
     return occ_out, adr_out, dem_out, onset
@@ -152,7 +185,7 @@ def project_years(dm: DemandModel, am: AdrModel, rng: np.random.Generator, n_pat
 def simulate_baseline(monthly: pd.DataFrame, annual_hist: pd.DataFrame, dm: DemandModel, am: AdrModel,
                       sp: SupplyPaths, ceiling: dict, horizon: int, n_paths: int, rng: np.random.Generator,
                       covid_years: list[int], spread: float = 1.0, cpi_paths: np.ndarray | None = None,
-                      cpi0: np.ndarray | float = 0.0) -> Paths:
+                      cpi0: np.ndarray | float = 0.0, trace: dict | None = None) -> Paths:
     m = monthly.sort_values("period_start").reset_index(drop=True)
     last = m["period_start"].iloc[-1]
     y0 = int(last.year)
@@ -218,7 +251,11 @@ def simulate_baseline(monthly: pd.DataFrame, annual_hist: pd.DataFrame, dm: Dema
     occ, adr, dem, onset = project_years(
         dm, am, rng, n_paths, horizon, d_y0, np.full(n_paths, base["demand"]), ind_y0, s_y0, occ_y0,
         np.full(n_paths, base["occupancy"]), adr_y0, np.full(n_paths, base["adr"]), sup_y, ind_y,
-        ceiling["annual"], cpi_paths, spread, _x_range(annual_hist), cpi0)
+        ceiling["annual"], cpi_paths, spread, _x_range(annual_hist), cpi0, trace)
+    if trace is not None:
+        trace["y0_supply"] = s_y0
+        trace["sup_y"] = sup_y
+        trace["y0_rest_idx"] = np.nonzero(month_years == y0)[0]
     return Paths(years, y0 - 1, np.column_stack([occ_y0, occ]), np.column_stack([adr_y0, adr]),
                  np.column_stack([d_y0, dem]), np.column_stack([s_y0, sup_y]), base, stub_monthly,
                  np.column_stack([np.zeros(n_paths, dtype=np.int8), onset]), notes)

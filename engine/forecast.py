@@ -18,6 +18,7 @@ from engine.adr.model import fit_adr
 from engine.backtest.rolling import run_backtest
 from engine.config import CONFIG_DIR, MarketConfig, load_yaml
 from engine.demand.baseline import fit_demand
+from engine.explain import build_explanation
 from engine.history.analysis import analyse_history
 from engine.ingest.core import IngestResult
 from engine.simulate.baseline import position_vs_history, simulate_baseline, summarise
@@ -122,17 +123,22 @@ def run_forecast(res: IngestResult, cfg: MarketConfig, priors: dict, ppri: dict,
     if cpi and not use_cpi:
         raise ValueError("CPI history loaded but the ADR model is not in CPI mode")
 
-    def simulate(model, k):
+    gs = res.growth_sample
+    sg = gs.loc[gs["use_supply"], "g_supply"].dropna()
+    hist_supply_growth = float(np.expm1(sg.median())) if len(sg) >= 5 else None
+
+    def simulate(model, k, trace=None):
         rng = np.random.default_rng(seed)
-        sup = simulate_supply(res.pipeline, res.monthly, months, ppri, n_paths, rng)
+        sup = simulate_supply(res.pipeline, res.monthly, months, ppri, n_paths, rng, hist_supply_growth, covid)
         cp = cpi_paths(macro, [y0 + i for i in range(1, cfg.horizon_years + 1)], n_paths, rng) if use_cpi else None
         c0 = cpi_rate(macro, y0) if use_cpi else 0.0
         if use_cpi and (cp is None or c0 is None):
             raise ValueError("CPI mode needs inflation for the stub year and every forecast year")
         return sup, simulate_baseline(res.monthly_spliced, hist.annual, model, am, sup, hist.ceiling, cfg.horizon_years,
-                                      n_paths, rng, covid, k, cp, c0)
+                                      n_paths, rng, covid, k, cp, c0, trace)
 
-    sup, paths = simulate(dm, bt.spread)
+    trace: dict = {}
+    sup, paths = simulate(dm, bt.spread, trace)
     summary = summarise(paths)
     _, paths_alt = simulate(dm_alt, bt.spread)
     summary_alt = summarise(paths_alt)
@@ -142,6 +148,9 @@ def run_forecast(res: IngestResult, cfg: MarketConfig, priors: dict, ppri: dict,
                                               "difference": a[m]["p50"] - b[m]["p50"]}
                                           for m in ("occ_growth", "adr_growth", "revpar_growth", "demand_growth")}})
     positions = position_vs_history(summary, hist.growth_pcts, hist.annual, hist.occ_annual_max)
+    cpi_path_out = {str(y): cpi_rate(macro, y) for y in range(y0 + 1, y0 + cfg.horizon_years + 1)} if use_cpi else None
+    explanation = build_explanation(paths, trace, sup, dm, am, hist, summary, positions, hist.ceiling["annual"],
+                                    hist_supply_growth, cpi_path_out)
 
     proj = sup.projects.copy()
     if not proj.empty:
@@ -157,6 +166,10 @@ def run_forecast(res: IngestResult, cfg: MarketConfig, priors: dict, ppri: dict,
     assumptions = [
         f"Occupancy ceiling {hist.ceiling['annual']:.1%}: {hist.ceiling['basis']}",
         "Pipeline stage probabilities, delays, removals, ramp-up and induced-demand shares from config/pipeline_priors.yaml (assumptions).",
+        (f"Unannounced supply: hotels not yet in the pipeline export fill the gap between the market's median historical supply "
+         f"growth ({hist_supply_growth:.1%} a year; none in the first forecast year, half in the second, all from the third) and "
+         "what the pipeline delivers each year. No extra induced demand.")
+        if hist_supply_growth and hist_supply_growth > 0 else "No unannounced supply added (historical supply growth not positive or too short).",
         f"Induced demand from new rooms assumes they stabilise at the trailing 12-month occupancy ({sup.ref_occupancy:.1%}).",
         "Shock regime: shock years, recovery profiles and Beta priors from config/priors.yaml (assumptions) updated with the market's own shock count.",
         "The demand growth lag for the first full year uses the stub year's demand growth, which includes the effect of current closures.",
@@ -173,6 +186,7 @@ def run_forecast(res: IngestResult, cfg: MarketConfig, priors: dict, ppri: dict,
                   "cpi_source": (macro.get("cpi_history") or {}).get("source"),
                   "cpi_projection_note": (macro.get("cpi_projections") or {}).get("assumption")},
         "summary": summary,
+        "explanation": explanation,
         "positions": positions,
         "covid_sensitivity": {"default": "exclude" if not include_covid else "include", "by_year": sens},
         "stub": paths.stub_monthly,

@@ -108,6 +108,53 @@ def render_backtest(out: dict) -> str:
     return "\n".join(L)
 
 
+def _bp(x):
+    return "" if x is None else f"{x * 100:+.1f}"
+
+
+def _why(out: dict) -> list[str]:
+    e = out.get("explanation")
+    if not e:
+        return []
+    L = ["## Why the forecast sits here", ""]
+    if e["flags"]:
+        L += ["**Plausibility flags**", ""] + [f"- {f['text']}" for f in e["flags"]] + [""]
+    else:
+        L += ["No plausibility flags: each year's P50 sits inside the market's historical range.", ""]
+    L += ["**What drives it**", ""] + [f"- {d}" for d in e["drivers"]] + [""]
+    c = e.get("cumulative_revpar") or {}
+    if c:
+        L += [f"Cumulative RevPAR growth {c['from_year']} to {c['to_year']}: P50 {p(c['forecast_p50'])} (P10 {p(c['forecast_p10'])}, "
+              f"P90 {p(c['forecast_p90'])}). The market's own {c['history_n']} five-year periods outside COVID ranged "
+              f"{p(c['history_p10'])} (P10) to {p(c['history_p90'])} (P90), median {p(c['history_p50'])}; the forecast P50 sits at "
+              f"the {c['percentile'] * 100:.0f}th percentile.", ""]
+    L += ["**Year by year**", ""] + [f"- {y['text']}" for y in e["per_year"]] + [""]
+    yrs = [b["year"] for b in e["bridge"]]
+    head = "| Component (points of growth, mean) | " + " | ".join(map(str, yrs)) + " |"
+    sep = "| --- | " + " | ".join("---:" for _ in yrs) + " |"
+    rows = [("Demand: trend", ("demand", "trend")), ("Demand: momentum", ("demand", "momentum")),
+            ("Demand: expected shocks", ("demand", "shocks")), ("Demand: new and reopened hotels", ("demand", "new_hotels")),
+            ("Demand: occupancy ceiling", ("demand", "ceiling")), ("Demand: noise (mean)", ("demand", "noise")),
+            ("**Demand total**", ("demand", "total")),
+            ("Supply: existing stock", ("supply", "existing_level")), ("Supply: removals", ("supply", "removals")),
+            ("Supply: new builds", ("supply", "new_builds")), ("Supply: reopenings", ("supply", "reopenings")),
+            ("Supply: unannounced", ("supply", "unannounced")), ("**Supply total**", ("supply", "total")),
+            ("**Occupancy = demand minus supply**", None),
+            ("ADR: inflation", ("adr", "inflation")), ("ADR: real drift", ("adr", "real_drift")),
+            ("ADR: pricing power", ("adr", "pricing_power")), ("ADR: carry-over", ("adr", "carry_over")),
+            ("ADR: noise (mean)", ("adr", "noise")), ("**ADR total**", ("adr", "total")),
+            ("Share of paths without a shock", ("calm", "share")),
+            ("Occupancy, years without a shock", ("calm", "occ_total")),
+            ("ADR, years without a shock", ("calm", "adr_total"))]
+    L += [head, sep]
+    for label, key in rows:
+        vals = [b["occupancy_total"] if key is None else b[key[0]].get(key[1]) for b in e["bridge"]]
+        fmt = (lambda v: "" if v is None else f"{v:.0%}") if key == ("calm", "share") else _bp
+        L.append(f"| {label} | " + " | ".join(fmt(v) for v in vals) + " |")
+    L += ["", e["note"], ""]
+    return L
+
+
 def render_baseline(out: dict, cfg: MarketConfig) -> str:
     m = out["meta"]
     cur = cfg.currency
@@ -122,6 +169,7 @@ def render_baseline(out: dict, cfg: MarketConfig) -> str:
                  f"{r['p_revpar_negative'] * 100:.0f}% |")
     L += ["", f"Levels at P50: " + "; ".join(f"{r['year']} occupancy {lvl(r['occupancy']['p50'])}, ADR {money(r['adr']['p50'])} {cur}"
                                               for r in out["summary"]), ""]
+    L += _why(out)
     L += ["## Against history", "", "| Year | Occ. growth percentile | ADR growth percentile | RevPAR growth percentile | Nearest analog | Flags |",
           "| --- | ---: | ---: | ---: | --- | --- |"]
     for r in out["positions"]:

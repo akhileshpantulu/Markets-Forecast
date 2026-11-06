@@ -44,6 +44,8 @@ interface Forecast {
     occ_annual_max: number; occ_annual_min: number; notes: string[] };
   backtest: { origins: number[]; chosen: string; spread: number; calibrated: boolean; coverage: Record<string, any>[];
     benchmarks: Record<string, any>[]; variants: Record<string, any>[]; notes: string[] };
+  explanation?: { bridge: Record<string, any>[]; flags: { level: string; year: number | null; text: string }[]; drivers: string[];
+    per_year: { year: number; text: string }[]; cumulative_revpar: Record<string, number>; note: string };
   macro?: { adr_mode: string; cpi_path: Record<string, number | null> | null; cpi_source: { publisher: string; title: string; url: string; accessed: string } | null; cpi_projection_note: string | null };
   gaps: string[]; assumptions: string[]; notes: string[];
   reports: { history_md: string; backtest_md: string; baseline_md: string };
@@ -443,6 +445,7 @@ function forecastView(p: HTMLElement, r: Result) {
     table(["Year", ["Occupancy, P50", "n"], [`ADR (${cur}), P50`, "n"], [`RevPAR (${cur}), P50`, "n"]],
       f.summary.map((x) => [String(x.year), pct(x.occupancy.p50), num(x.adr.p50, 1), num(x.revpar.p50, 1)])),
   );
+  if (f.explanation) whyView(p, f);
   const toggle = h("div", { class: "downloads", role: "group", "aria-label": "Chart values" },
     (["growth", "level"] as const).map((m) => h("button", { class: `btn${state.fcMode === m ? " primary" : ""}`, type: "button", "aria-pressed": String(state.fcMode === m),
       onclick: () => { state.fcMode = m; renderResults(); } }, m === "growth" ? "Growth %" : "Levels")));
@@ -520,6 +523,43 @@ function forecastView(p: HTMLElement, r: Result) {
     h("h2", {}, "Assumptions"), h("ul", {}, f.assumptions.map((g) => h("li", {}, g))),
   );
   requestAnimationFrame(() => charts.forEach((fn) => fn()));
+}
+
+function whyView(p: HTMLElement, f: Forecast) {
+  const e = f.explanation!;
+  const bp = (v: number | null | undefined) => (v === null || v === undefined || !Number.isFinite(v) ? "" : `${v >= 0 ? "+" : ""}${(v * 100).toFixed(1)}`);
+  p.append(h("h2", {}, "Why the forecast sits here"));
+  if (e.flags.length) {
+    p.append(h("div", { class: "flags" }, e.flags.map((fl) => h("div", { class: "flag" }, badge("warn", "Check"), " ", fl.text))));
+  } else {
+    p.append(h("p", { class: "note" }, "No plausibility flags: each year's P50 sits inside the market's historical range, occupancy stays below the ceiling, and supply keeps pace with its history."));
+  }
+  p.append(h("h3", { style: "margin-top:12px" }, "What drives it"), h("ul", {}, e.drivers.map((d) => h("li", {}, d))));
+  const c = e.cumulative_revpar;
+  if (c && c.history_n) {
+    p.append(h("p", {}, `Cumulative RevPAR growth ${c.from_year} to ${c.to_year}: P50 ${signedPct(c.forecast_p50)} (P10 ${signedPct(c.forecast_p10)}, P90 ${signedPct(c.forecast_p90)}). `,
+      `The market's own ${c.history_n} five-year periods outside COVID ranged from ${signedPct(c.history_p10)} (P10) to ${signedPct(c.history_p90)} (P90), median ${signedPct(c.history_p50)}. `,
+      h("b", {}, `The forecast P50 sits at the ${Math.round(c.percentile * 100)}th percentile.`)));
+  }
+  p.append(h("h3", { style: "margin-top:12px" }, "Year by year"), h("ul", {}, e.per_year.map((y) => h("li", {}, y.text))));
+  const years = e.bridge.map((b) => String(b.year));
+  const rows: [string, (b: any) => number | null, boolean?][] = [
+    ["Demand: trend", (b) => b.demand.trend], ["Demand: momentum", (b) => b.demand.momentum],
+    ["Demand: expected shocks", (b) => b.demand.shocks], ["Demand: new and reopened hotels", (b) => b.demand.new_hotels],
+    ["Demand: occupancy ceiling", (b) => b.demand.ceiling], ["Demand total", (b) => b.demand.total, true],
+    ["Supply: existing stock", (b) => b.supply.existing_level], ["Supply: removals", (b) => b.supply.removals],
+    ["Supply: new builds", (b) => b.supply.new_builds], ["Supply: reopenings", (b) => b.supply.reopenings],
+    ["Supply: unannounced", (b) => b.supply.unannounced], ["Supply total", (b) => b.supply.total, true],
+    ["Occupancy (demand minus supply)", (b) => b.occupancy_total, true],
+    ["ADR: inflation", (b) => b.adr.inflation], ["ADR: real drift", (b) => b.adr.real_drift],
+    ["ADR: pricing power", (b) => b.adr.pricing_power], ["ADR: carry-over", (b) => b.adr.carry_over],
+    ["ADR total", (b) => b.adr.total, true],
+    ["Occupancy, years without a shock", (b) => b.calm?.occ_total ?? null, true], ["ADR, years without a shock", (b) => b.calm?.adr_total ?? null, true],
+  ];
+  p.append(h("details", { style: "margin-top:8px" }, h("summary", {}, "Growth bridge: every component by year (points of growth)"),
+    table(["Component", ...years.map((y) => [y, "n"] as [string, string])],
+      rows.map(([label, fn, bold]) => [bold ? h("b", {}, label) : label, ...e.bridge.map((b) => bold ? h("b", {}, bp(fn(b))) : bp(fn(b)))])),
+    h("p", { class: "note" }, e.note)));
 }
 
 function historyView(p: HTMLElement, r: Result) {

@@ -49,3 +49,17 @@ induced_demand:
   share_of_new_rooms: {dist: triangular, low: 0.0, mode: 0.3, high: 0.6}
   share_of_reopened_rooms: {dist: triangular, low: 0.2, mode: 0.5, high: 0.8}
   reference_occupancy: trailing_12m   # occupancy the stabilised new rooms are assumed to reach
+
+# Hotels that will open within the horizon but are not yet in any pipeline
+# export. Each forecast year, unannounced supply fills the gap between the
+# market's own historical supply growth (median annual growth in complete,
+# non-COVID years) times trend_share_by_year, and the growth the pipeline is
+# expected to deliver that year. Year 1 relies on the pipeline alone; from
+# year 3 the full historical rate applies. ASSUMPTION.
+unannounced_supply:
+  enabled: true
+  basis: historical_median_supply_growth
+  trend_share_by_year: [0.0, 0.5, 1.0, 1.0, 1.0]
+  uncertainty: 0.5          # rate per path varies +/- 50% (triangular)
+  min_rate: 0.0
+  max_rate: 0.05

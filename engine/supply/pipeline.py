@@ -35,7 +35,11 @@ class SupplyPaths:
     base_rooms: float
     ref_occupancy: float
     removal_rate: np.ndarray
+    components: dict[str, np.ndarray] = field(default_factory=dict)   # rooms by source [paths, months]
+    seasonal_index: dict[int, float] = field(default_factory=dict)
+    unannounced_rate: float = 0.0
     notes: list[str] = field(default_factory=list)
+    unannounced_by_year: dict[int, float] = field(default_factory=dict)
 
     @property
     def supply(self) -> np.ndarray:
@@ -45,21 +49,55 @@ class SupplyPaths:
         return self.induced_rooms * self.days[None, :] * self.ref_occupancy
 
 
+SEASONAL_MIN_AMPLITUDE = 0.03
+
+
+def seasonal_availability(monthly: pd.DataFrame, covid_years: set[int], years: int = 3) -> dict[int, float]:
+    """Median ratio of each calendar month's available rooms to its year's average, over the last
+    complete non-COVID years. Captures hotels that close seasonally. Returns all 1.0 when the
+    pattern is weaker than SEASONAL_MIN_AMPLITUDE (a flat, year-round market)."""
+    m = monthly.copy()
+    m["year"] = m["period_start"].dt.year
+    m["month"] = m["period_start"].dt.month
+    counts = m.groupby("year")["month"].count()
+    full = [y for y in counts.index if counts[y] == 12 and y not in covid_years][-years:]
+    flat = {k: 1.0 for k in range(1, 13)}
+    if not full:
+        return flat
+    x = m[m["year"].isin(full)].copy()
+    x["ratio"] = x["available_rooms"] / x.groupby("year")["available_rooms"].transform("mean")
+    idx = x.groupby("month")["ratio"].median()
+    if idx.max() - idx.min() < SEASONAL_MIN_AMPLITUDE:
+        return flat
+    return {int(k): float(v) for k, v in idx.items()}
+
+
 def simulate_supply(pipeline: pd.DataFrame | None, monthly: pd.DataFrame, months: pd.DatetimeIndex,
-                    priors: dict, n_paths: int, rng: np.random.Generator) -> SupplyPaths:
-    last = monthly.sort_values("period_start").iloc[-1]
-    base = float(last["available_rooms"])
-    trailing = monthly.sort_values("period_start").tail(12)
+                    priors: dict, n_paths: int, rng: np.random.Generator, hist_supply_growth: float | None = None,
+                    covid_years: list[int] | None = None) -> SupplyPaths:
+    ms = monthly.sort_values("period_start")
+    last = ms.iloc[-1]
+    seas = seasonal_availability(ms, set(covid_years or []))
+    # Level from the latest month, shape from the seasonal index (1.0 everywhere for year-round markets).
+    base = float(last["available_rooms"]) / seas[int(last["period_start"].month)]
+    trailing = ms.tail(12)
     ref_occ = float(trailing["demand"].sum() / trailing["supply"].sum())
     days = np.array([pd.Timestamp(m).days_in_month for m in months], dtype=float)
+    season = np.array([seas[int(pd.Timestamp(m).month)] for m in months])
     n_m = len(months)
     first = months[0]
     notes: list[str] = []
+    if any(abs(v - 1) > 1e-9 for v in seas.values()):
+        notes.append("Seasonal closures detected: future months follow the recent seasonal pattern of available rooms "
+                     f"(lowest month {min(seas.values()):.0%} of the yearly average, highest {max(seas.values()):.0%}).")
 
     # Removals: compound annual rate per path, applied to the starting stock.
     rate = _tri(rng, priors["removals"]["annual_rate"], n_paths)
     t_years = (np.arange(n_m) + 1) / 12.0
-    rooms = base * (1 - rate[:, None]) ** t_years[None, :]
+    stock = base * (1 - rate[:, None]) ** t_years[None, :]
+    removed = base - stock
+    new_rooms = np.zeros((n_paths, n_m))
+    reopened = np.zeros((n_paths, n_m))
 
     induced = np.zeros((n_paths, n_m))
     ramp = np.asarray(priors["ramp_up"]["demand_share_by_year"], float)
@@ -88,7 +126,10 @@ def simulate_supply(pipeline: pd.DataFrame | None, monthly: pd.DataFrame, months
         open_month[str(r.project_id)] = idx
         live = idx >= 0
         mask = live[:, None] & (np.arange(n_m)[None, :] >= idx[:, None])
-        rooms += mask * rooms_added
+        if r.project_type == "renovation_reopening":
+            reopened += mask * rooms_added
+        else:
+            new_rooms += mask * rooms_added
         # Ramp: months since opening -> year index -> share of stabilised demand.
         since = np.arange(n_m)[None, :] - idx[:, None]
         yr = np.clip(since // 12, 0, len(ramp) - 1)
@@ -99,7 +140,56 @@ def simulate_supply(pipeline: pd.DataFrame | None, monthly: pd.DataFrame, months
                      "projected_open": None if pd.isna(r.projected_open) else pd.Timestamp(r.projected_open).strftime("%Y-%m"),
                      "p_open_horizon": float(live.mean()),
                      "median_open": months[int(np.median(idx[live]))].strftime("%Y-%m") if live.any() else None})
-    return SupplyPaths(months, days, rooms, induced, open_month, pd.DataFrame(rows), base, ref_occ, rate, notes)
+
+    # Unannounced supply: hotels that will open but are not yet in any pipeline export. Pipelines see
+    # one to two years ahead, so later years would otherwise get almost no new hotels, and occupancy
+    # would drift up whenever the historical demand trend was earned alongside supply growth.
+    # Each forecast year, unannounced supply fills the gap between the market's own historical
+    # supply growth (scaled by how far ahead the year is) and what the pipeline is expected to
+    # deliver that year. No extra induced demand: demand brought by historical supply growth is
+    # already in the demand trend.
+    ua = priors.get("unannounced_supply", {})
+    u_rate = 0.0
+    unannounced = np.zeros((n_paths, n_m))
+    u_by_year: dict[int, float] = {}
+    if ua.get("enabled", True) and hist_supply_growth is not None:
+        u_rate = float(np.clip(hist_supply_growth, ua.get("min_rate", 0.0), ua.get("max_rate", 0.05)))
+        # Historical growth is net of closures; removals are modelled separately, so gross openings
+        # must cover both to reproduce the historical net rate.
+        rem = priors["removals"]["annual_rate"]
+        removal_mean = (rem["low"] + rem["mode"] + rem["high"]) / 3.0
+        if u_rate > 0:
+            phase = ua.get("trend_share_by_year", [0.0, 0.5, 1.0, 1.0, 1.0])
+            spread = float(ua.get("uncertainty", 0.5))
+            r_path = _tri(rng, {"low": 1 - spread, "mode": 1.0, "high": 1 + spread}, n_paths)
+            stub_year = first.year if first.month > 1 else first.year - 1
+            pipe_rooms = (new_rooms + reopened).mean(axis=0)
+            month_years = np.array([m.year for m in months])
+            cum = np.zeros(n_paths)
+            prev_end = 0.0
+            yearly = {}
+            for y in sorted(set(month_years)):
+                k = y - stub_year - 1                         # 0 for the first full forecast year
+                sel = np.nonzero(month_years == y)[0]
+                end_rooms = float(pipe_rooms[sel[-1]])
+                pipeline_growth = (end_rooms - prev_end) / base
+                prev_end = end_rooms
+                target = (u_rate + removal_mean) * (phase[min(k, len(phase) - 1)] if k >= 0 else 0.0)
+                yearly[y] = max(0.0, target - pipeline_growth)
+            for j, mth in enumerate(months):
+                cum = cum + np.log1p(yearly[mth.year] * r_path) / 12.0
+                unannounced[:, j] = base * np.expm1(cum)
+            u_by_year = {int(k): float(v) for k, v in yearly.items()}
+    rooms_flat = stock + new_rooms + reopened + unannounced
+    rooms = rooms_flat * season[None, :]
+    comps = {"stock_after_removals": stock * season[None, :], "removed": removed * season[None, :],
+             "new_builds": new_rooms * season[None, :], "reopenings": reopened * season[None, :],
+             "unannounced": unannounced * season[None, :]}
+    induced = induced * season[None, :]
+    sp = SupplyPaths(months, days, rooms, induced, open_month, pd.DataFrame(rows), base, ref_occ, rate, comps, seas,
+                     u_rate, notes)
+    sp.unannounced_by_year = u_by_year
+    return sp
 
 
 def annual_open_probabilities(sp: SupplyPaths) -> pd.DataFrame:

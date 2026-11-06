@@ -107,6 +107,14 @@ Each evidence item records `claim, url, publisher, published, accessed`. Primary
 - Shocks: a year falling more than 2 robust standard deviations below the median. "Severe" is a log fall beyond 0.5. Profiles come from history. Annual probabilities are Beta priors updated with the shock count.
 - ADR: CPI mode when inflation history and projections are available (from `config/macro/generated/`, fetched by the workflow). Otherwise it runs in nominal mode and the gap is recorded. The backtest forecasts inflation naively at each origin: the last observed rate decays to 2%.
 - Stub year: errors are calibrated on how the same rule performed in past years at the same month cutoff.
+- Supply realism (added after the user flagged aggressive growth in another market):
+  - Future months follow the recent seasonal pattern of available rooms, so markets with seasonal closures are handled.
+  - "Unannounced supply" fills the gap between the market's median historical net supply growth (plus removals) and what the pipeline delivers each year. The pipeline alone covers year 1, half the trend applies in year 2, and the full trend from year 3. It adds no induced demand, because that is already in the demand trend.
+  - Without this, a thin pipeline lets the historical demand trend push occupancy up to the ceiling.
+- Explanation (`engine/explain.py`): the projection traces every component path by path.
+  - The growth bridge splits mean log growth into demand trend, momentum, shocks, new-hotel demand and ceiling, minus supply (existing stock, removals, new builds, reopenings, unannounced); and ADR into inflation, real drift, pricing power and carry-over. The parts add up exactly.
+  - Year-by-year text uses paths without a shock, which is what the P50 reflects.
+  - Plausibility flags: ceiling share, supply against history, P50 outside history P5 to P95, occupancy above the historical maximum, real ADR above 3% for three years, and five-year cumulative RevPAR against the market's own five-year periods.
 - The backtest conditions on realised supply, picks residual type and COVID treatment by CRPS, and calibrates spread only if pooled ex-COVID P10 to P90 coverage falls outside 70% to 90%.
 
 ## Commands

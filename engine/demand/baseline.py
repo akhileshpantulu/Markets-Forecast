@@ -52,6 +52,8 @@ class DemandModel:
     p_severe: tuple[float, float]
     include_covid: bool
     notes: list[str] = field(default_factory=list)
+    p_scale_moderate: float = 1.0     # user setting: multiplier on the moderate shock probability
+    p_scale_severe: float = 1.0
 
     def p_mean(self, cls: str) -> float:
         a, b = self.p_moderate if cls == "moderate" else self.p_severe
@@ -212,8 +214,8 @@ def simulate_shocks(model: DemandModel, rng: np.random.Generator, n_paths: int, 
     dev = np.zeros((n_paths, n_years))
     onset = np.zeros((n_paths, n_years), dtype=np.int8)
     by_cls = {c: [p for p in model.shock_profiles if p.cls == c] for c in ("moderate", "severe")}
-    p_mod = rng.beta(*model.p_moderate, size=n_paths) if by_cls["moderate"] else np.zeros(n_paths)
-    p_sev = rng.beta(*model.p_severe, size=n_paths) if by_cls["severe"] else np.zeros(n_paths)
+    p_mod = rng.beta(*model.p_moderate, size=n_paths) * model.p_scale_moderate if by_cls["moderate"] else np.zeros(n_paths)
+    p_sev = rng.beta(*model.p_severe, size=n_paths) * model.p_scale_severe if by_cls["severe"] else np.zeros(n_paths)
     busy_until = np.zeros(n_paths, dtype=int)
     u = rng.random((n_paths, n_years))
     pick = rng.random((n_paths, n_years))

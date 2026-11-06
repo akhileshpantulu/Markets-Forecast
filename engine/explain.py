@@ -177,14 +177,15 @@ def build_explanation(paths: Paths, trace: dict, sp: SupplyPaths, dm: DemandMode
                    ("reopenings", s_["reopenings"]), ("unannounced", s_["unannounced"])]
         main_s = ", ".join(f"{n} {pp(v)}" for n, v in parts_s if abs(v) >= 0.0005) or "no change"
         if c:
-            parts_d = [("trend", d["trend"]), ("momentum", c["demand_momentum"]),
+            parts_d = [("trend", d["trend"]), ("momentum", c["demand_momentum"]), ("drivers", c.get("demand_drivers", 0.0)),
                        ("demand from new and reopened hotels", c["demand_new_hotels"]), ("occupancy ceiling", c["demand_ceiling"])]
             main_d = ", ".join(f"{n} {pp(v)}" for n, v in parts_d if abs(v) >= 0.0005)
             text = (f"{b['year']}: occupancy {pct(r['occ_growth']['p50'])} and ADR {pct(r['adr_growth']['p50'])} at P50. "
                     f"In the {c['share']:.0%} of paths with no shock that year, demand grows {pp(c['demand_total'])} points "
                     f"({main_d}) against supply {pp(c['supply_total'])} points ({main_s}), so occupancy moves "
                     f"{pp(c['occ_total'])} points; ADR moves {pp(c['adr_total'])} points (inflation {pp(a['inflation'])}, "
-                    f"real drift {pp(a['real_drift'])}, pricing power {pp(c['adr_pricing_power'])}). "
+                    f"real drift {pp(a['real_drift'])}, pricing power {pp(c['adr_pricing_power'])}"
+                    + (f", drivers {pp(c.get('adr_drivers', 0.0))}" if abs(c.get('adr_drivers', 0.0)) >= 0.0005 else "") + "). "
                     f"Shocks in the other paths pull mean demand growth to {pp(d['total'])} points.")
         else:
             text = (f"{b['year']}: occupancy {pct(r['occ_growth']['p50'])} and ADR {pct(r['adr_growth']['p50'])} at P50. "

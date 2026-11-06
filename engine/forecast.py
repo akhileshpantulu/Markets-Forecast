@@ -18,7 +18,11 @@ from engine.adr.model import fit_adr
 from engine.backtest.rolling import run_backtest
 from engine.config import CONFIG_DIR, MarketConfig, load_yaml
 from engine.demand.baseline import fit_demand
+from engine.drivers.apply import build_effects
+from engine.drivers.validate import check_cards, parse_cards
 from engine.explain import build_explanation
+from engine.settings import apply_settings
+import dataclasses
 from engine.history.analysis import analyse_history
 from engine.ingest.core import IngestResult
 from engine.simulate.baseline import position_vs_history, simulate_baseline, summarise
@@ -51,6 +55,11 @@ def _records(df: pd.DataFrame | None) -> list[dict]:
     if df is None or df.empty:
         return []
     return [{k: _num(v) for k, v in r.items()} for r in df.to_dict(orient="records")]
+
+
+def load_driver_priors(config_dir=None) -> dict:
+    p = (config_dir or CONFIG_DIR) / "driver_priors.yaml"
+    return load_yaml(p) if p.exists() else {"event_status_ladder": {}, "include_proposed": True}
 
 
 def load_inputs(cfg: MarketConfig, config_dir=None) -> tuple[dict, dict, dict]:
@@ -99,21 +108,50 @@ def cpi_paths(macro: dict, years: list[int], n: int, rng: np.random.Generator) -
     return np.asarray(rates)[None, :] + rng.normal(0, sd, (n, len(years)))
 
 
+ATTRIBUTION_PATHS = 4000
+
+
 def run_forecast(res: IngestResult, cfg: MarketConfig, priors: dict, ppri: dict, macro: dict,
-                 n_paths: int | None = None, seed: int | None = None, backtest_paths: int | None = None) -> dict:
+                 n_paths: int | None = None, seed: int | None = None, backtest_paths: int | None = None,
+                 drivers: list[dict] | None = None, settings: dict | None = None, driver_priors: dict | None = None,
+                 cache: dict | None = None, attribution: bool = True) -> dict:
+    """drivers: raw driver cards (dicts). settings: user adjustments (see engine/settings.py).
+    cache: a dict reused across calls on the same data to skip the backtest when only settings change."""
     t0 = time.time()
     n_paths = n_paths or cfg.simulation.paths
     seed = cfg.simulation.seed if seed is None else seed
+    driver_priors = driver_priors if driver_priors is not None else load_driver_priors()
+    applied = apply_settings(settings, ppri, macro, driver_priors)
+    ppri, macro, driver_priors, knobs = applied.ppri, applied.macro, applied.driver_priors, applied.knobs
     cpi = cpi_history(macro)
     covid = cfg.estimation.covid_years
     hist = analyse_history(res.monthly_spliced, res.growth_sample, cfg, cpi)
 
-    bt = run_backtest(res.monthly_spliced, res.growth_sample, hist.annual, cfg, priors, seed, backtest_paths, cpi=cpi)
+    # The backtest tests the baseline engine on history; user settings do not change it, so it is cached.
+    bt_key = (res.run_id, seed, backtest_paths, bool(cpi))
+    if cache is not None and cache.get("bt_key") == bt_key:
+        bt = cache["bt"]
+    else:
+        bt = run_backtest(res.monthly_spliced, res.growth_sample, hist.annual, cfg, priors, seed, backtest_paths, cpi=cpi)
+        if cache is not None:
+            cache.update({"bt_key": bt_key, "bt": bt})
     include_covid = bt.chosen.startswith("with_covid")
     resid = bt.chosen.split("/")[1]
     dm = fit_demand(res.growth_sample, priors, covid, include_covid, resid)
     dm_alt = fit_demand(res.growth_sample, priors, covid, not include_covid, resid)
     am = fit_adr(hist.annual, dm, res.growth_sample, priors, cpi)
+    fitted = {"demand_mu": dm.mu, "adr_alpha": am.alpha, "adr_beta": am.beta, "ceiling": hist.ceiling["annual"]}
+    # User biases are applied after fitting and reported as adjustments.
+    for m_ in (dm, dm_alt):
+        m_.mu += knobs["trend_bias"]
+        m_.p_scale_moderate = knobs["shock_mult_moderate"]
+        m_.p_scale_severe = knobs["shock_mult_severe"]
+    am.alpha += knobs["drift_bias"]
+    if knobs["pricing_power"] is not None:
+        am.beta = max(0.0, float(knobs["pricing_power"]))
+    ceiling = dict(hist.ceiling)
+    if knobs["ceiling"] is not None:
+        ceiling["annual"] = float(knobs["ceiling"])
 
     last = res.monthly["period_start"].max()
     y0 = int(last.year)
@@ -126,22 +164,58 @@ def run_forecast(res: IngestResult, cfg: MarketConfig, priors: dict, ppri: dict,
     gs = res.growth_sample
     sg = gs.loc[gs["use_supply"], "g_supply"].dropna()
     hist_supply_growth = float(np.expm1(sg.median())) if len(sg) >= 5 else None
+    hist_supply_used = float(knobs["unannounced_rate"]) if knobs["unannounced_rate"] is not None else hist_supply_growth
 
-    def simulate(model, k, trace=None):
+    # Drivers: parse, check, and turn into per-path effects.
+    years_all = [y0 + i for i in range(cfg.horizon_years + 1)]
+    cards, driver_issues = parse_cards(drivers)
+    keep, more = check_cards(cards, years_all, driver_priors, driver_priors.get("include_proposed", True))
+    driver_issues += more
+    base_rooms = float(res.monthly.sort_values("period_start")["available_rooms"].iloc[-1])
+    ladder = driver_priors.get("event_status_ladder", {})
+    cutoff = int(last.month)
+
+    def effects(card_list, n):
+        return build_effects(card_list, years_all, n, seed, base_rooms, ladder, cutoff,
+                             shock_cap=float(driver_priors.get("shock_multiplier_cap", 5.0)))
+
+    def simulate(model, k, trace=None, n=None, levels=None):
+        n = n or n_paths
         rng = np.random.default_rng(seed)
-        sup = simulate_supply(res.pipeline, res.monthly, months, ppri, n_paths, rng, hist_supply_growth, covid)
-        cp = cpi_paths(macro, [y0 + i for i in range(1, cfg.horizon_years + 1)], n_paths, rng) if use_cpi else None
+        sup = simulate_supply(res.pipeline, res.monthly, months, ppri, n, rng, hist_supply_used, covid)
+        cp = cpi_paths(macro, [y0 + i for i in range(1, cfg.horizon_years + 1)], n, rng) if use_cpi else None
         c0 = cpi_rate(macro, y0) if use_cpi else 0.0
         if use_cpi and (cp is None or c0 is None):
             raise ValueError("CPI mode needs inflation for the stub year and every forecast year")
-        return sup, simulate_baseline(res.monthly_spliced, hist.annual, model, am, sup, hist.ceiling, cfg.horizon_years,
-                                      n_paths, rng, covid, k, cp, c0, trace)
+        return sup, simulate_baseline(res.monthly_spliced, hist.annual, model, am, sup, ceiling, cfg.horizon_years,
+                                      n, rng, covid, k, cp, c0, trace, levels)
 
     trace: dict = {}
-    spread_arr = np.asarray(bt.spread_by_h[:cfg.horizon_years] if bt.spread_by_h else [1.0] * cfg.horizon_years, float)
-    sup, paths = simulate(dm, spread_arr, trace)
+    widen = bt.spread_by_h[:cfg.horizon_years] if (bt.spread_by_h and knobs["horizon_widening"]) else [1.0] * cfg.horizon_years
+    spread_arr = np.asarray(widen, float) * knobs["spread_multiplier"]
+    eff = effects(keep, n_paths)
+    sup, paths = simulate(dm, spread_arr, trace, levels=eff.as_levels())
     summary = summarise(paths)
-    _, paths_alt = simulate(dm_alt, spread_arr)
+    _, paths_alt = simulate(dm_alt, spread_arr, levels=eff.as_levels())
+
+    # Attribution by removal: each driver's effect on the mean, median and spread of growth.
+    attrib = []
+    if attribution and keep:
+        n_a = min(n_paths, ATTRIBUTION_PATHS)
+        _, p_all = simulate(dm, spread_arr, n=n_a, levels=effects(keep, n_a).as_levels())
+        g_all = p_all.growth()
+        targets = [("all", "All drivers together", [])] + [(c.id, c.title, [c.id]) for c in keep]
+        for cid, title, drop in targets:
+            subset = [c for c in keep if c.id not in drop] if drop else []
+            _, p_wo = simulate(dm, spread_arr, n=n_a, levels=effects(subset, n_a).as_levels())
+            g_wo = p_wo.growth()
+            row = {"id": cid, "title": title, "years": []}
+            for j, y in enumerate(p_all.years):
+                row["years"].append({"year": y, **{
+                    f"{mname}_{stat}": float(fn(g_all[mname][:, j]) - fn(g_wo[mname][:, j]))
+                    for mname in ("occ_growth", "adr_growth", "revpar_growth")
+                    for stat, fn in (("mean", np.mean), ("p50", np.median), ("sd", np.std))}})
+            attrib.append(row)
     summary_alt = summarise(paths_alt)
     sens = []
     for a, b in zip(summary, summary_alt):
@@ -150,7 +224,7 @@ def run_forecast(res: IngestResult, cfg: MarketConfig, priors: dict, ppri: dict,
                                           for m in ("occ_growth", "adr_growth", "revpar_growth", "demand_growth")}})
     positions = position_vs_history(summary, hist.growth_pcts, hist.annual, hist.occ_annual_max)
     cpi_path_out = {str(y): cpi_rate(macro, y) for y in range(y0 + 1, y0 + cfg.horizon_years + 1)} if use_cpi else None
-    explanation = build_explanation(paths, trace, sup, dm, am, hist, summary, positions, hist.ceiling["annual"],
+    explanation = build_explanation(paths, trace, sup, dm, am, hist, summary, positions, ceiling["annual"],
                                     hist_supply_growth, cpi_path_out)
 
     proj = sup.projects.copy()
@@ -162,7 +236,9 @@ def run_forecast(res: IngestResult, cfg: MarketConfig, priors: dict, ppri: dict,
         "No national or regional reference series uploaded." if res.reference_monthly is None else None,
         "No historical pipeline snapshots: delivery probabilities and delays are assumptions." if res.pipeline is None
         or res.pipeline["snapshot_date"].nunique() <= 1 else None,
-        "No forward-looking drivers or scenarios yet (Phases D and E). This is the baseline only.",
+        "No forward-looking drivers loaded: this is the baseline only." if not keep else
+        f"{len(keep)} driver(s) applied, {sum(1 for c in keep if c.status == 'proposed')} still proposed (not approved): provisional.",
+        "Scenarios with explicit probabilities are not built yet (Phase E).",
     ]
     assumptions = [
         f"Occupancy ceiling {hist.ceiling['annual']:.1%}: {hist.ceiling['basis']}",
@@ -189,6 +265,11 @@ def run_forecast(res: IngestResult, cfg: MarketConfig, priors: dict, ppri: dict,
                   "cpi_projection_note": (macro.get("cpi_projections") or {}).get("assumption")},
         "summary": summary,
         "explanation": explanation,
+        "adjustments": applied.adjustments,
+        "settings_effective": {**knobs, "fitted": fitted, "unannounced_rate_used": hist_supply_used,
+                               "spread_by_year": list(spread_arr)},
+        "drivers": {"cards": [c.model_dump() for c in cards], "applied": eff.applied, "issues": driver_issues,
+                    "attribution": attrib, "ladder": ladder},
         "positions": positions,
         "covid_sensitivity": {"default": "exclude" if not include_covid else "include", "by_year": sens},
         "stub": paths.stub_monthly,

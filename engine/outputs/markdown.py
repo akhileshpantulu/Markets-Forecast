@@ -138,15 +138,18 @@ def _why(out: dict) -> list[str]:
     head = "| Component (points of growth, mean) | " + " | ".join(map(str, yrs)) + " |"
     sep = "| --- | " + " | ".join("---:" for _ in yrs) + " |"
     rows = [("Demand: trend", ("demand", "trend")), ("Demand: momentum", ("demand", "momentum")),
-            ("Demand: expected shocks", ("demand", "shocks")), ("Demand: new and reopened hotels", ("demand", "new_hotels")),
+            ("Demand: expected shocks", ("demand", "shocks")), ("Demand: drivers", ("demand", "drivers")),
+            ("Demand: new and reopened hotels", ("demand", "new_hotels")),
             ("Demand: occupancy ceiling", ("demand", "ceiling")), ("Demand: noise (mean)", ("demand", "noise")),
             ("**Demand total**", ("demand", "total")),
             ("Supply: existing stock", ("supply", "existing_level")), ("Supply: removals", ("supply", "removals")),
             ("Supply: new builds", ("supply", "new_builds")), ("Supply: reopenings", ("supply", "reopenings")),
-            ("Supply: unannounced", ("supply", "unannounced")), ("**Supply total**", ("supply", "total")),
+            ("Supply: unannounced", ("supply", "unannounced")), ("Supply: drivers", ("supply", "drivers")),
+            ("**Supply total**", ("supply", "total")),
             ("**Occupancy = demand minus supply**", None),
             ("ADR: inflation", ("adr", "inflation")), ("ADR: real drift", ("adr", "real_drift")),
             ("ADR: pricing power", ("adr", "pricing_power")), ("ADR: carry-over", ("adr", "carry_over")),
+            ("ADR: drivers", ("adr", "drivers")),
             ("ADR: noise (mean)", ("adr", "noise")), ("**ADR total**", ("adr", "total")),
             ("Share of paths without a shock", ("calm", "share")),
             ("Occupancy, years without a shock", ("calm", "occ_total")),
@@ -157,6 +160,36 @@ def _why(out: dict) -> list[str]:
         fmt = (lambda v: "" if v is None else f"{v:.0%}") if key == ("calm", "share") else _bp
         L.append(f"| {label} | " + " | ".join(fmt(v) for v in vals) + " |")
     L += ["", e["note"], ""]
+    return L
+
+
+def _drivers_md(out: dict) -> list[str]:
+    d = out.get("drivers") or {}
+    L = []
+    if out.get("adjustments"):
+        L += ["## User adjustments in this run", "", "These change the model's default assumptions and are the user's judgement, not data.", ""]
+        L += [f"- {a}" for a in out["adjustments"]] + [""]
+    if not d.get("cards"):
+        return L
+    L += ["## Drivers", "", "| Driver | Affects | Year | Probability | Size if it happens | Status |", "| --- | --- | --- | ---: | --- | --- |"]
+    applied = {a["id"]: a for a in d.get("applied", [])}
+    for c in d["cards"]:
+        a = applied.get(c["id"])
+        m = c["magnitude"]
+        unit = {"rooms": " rooms", "multiplier": "x"}.get(m["unit"], "%")
+        prob = f"{a['probability'] * 100:.0f}%" if a else "not applied"
+        L.append(f"| {c['title']} | {c['affects'].replace('_', ' ')} | {c['timing']['start_year']} | {prob} | "
+                 f"{m['low']:g} to {m['high']:g}{unit} (most likely {m['mode']:g}{unit}) | {c['status']} |")
+    if d.get("attribution"):
+        yrs = [y["year"] for y in d["attribution"][0]["years"]]
+        L += ["", "Effect on mean RevPAR growth by year (points), measured by removing each driver:", "",
+              "| Driver | " + " | ".join(map(str, yrs)) + " |", "| --- | " + " | ".join("---:" for _ in yrs) + " |"]
+        for a in d["attribution"]:
+            L.append(f"| {a['title']} | " + " | ".join(f"{y['revpar_growth_mean'] * 100:+.1f}" for y in a["years"]) + " |")
+    issues = [i for i in d.get("issues", []) if i["level"] in ("error", "warn")]
+    if issues:
+        L += ["", "Driver checks:", ""] + [f"- {i['level']}: {i['id']}: {i['text']}" for i in issues]
+    L.append("")
     return L
 
 
@@ -174,6 +207,7 @@ def render_baseline(out: dict, cfg: MarketConfig) -> str:
                  f"{r['p_revpar_negative'] * 100:.0f}% |")
     L += ["", f"Levels at P50: " + "; ".join(f"{r['year']} occupancy {lvl(r['occupancy']['p50'])}, ADR {money(r['adr']['p50'])} {cur}"
                                               for r in out["summary"]), ""]
+    L += _drivers_md(out)
     L += _why(out)
     L += ["## Against history", "", "| Year | Occ. growth percentile | ADR growth percentile | RevPAR growth percentile | Nearest analog | Flags |",
           "| --- | ---: | ---: | ---: | --- | --- |"]

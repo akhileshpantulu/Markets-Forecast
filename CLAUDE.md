@@ -92,12 +92,20 @@ Each evidence item records `claim, url, publisher, published, accessed`. Primary
 - Drag-and-drop page: ingestion views plus Forecast, History, Backtest and supply views. Airline and country slots wait for example files.
 - Phases D to H: not started.
 
+## External public data
+
+- The user supplied API connectors (Eurostat tourism and air passengers, Eurostat HICP accommodation, IMF WEO GDP and CPI, ECB FX, INE Spain). They are listed verbatim in `config/external_sources.yaml`.
+- This session's network blocks those hosts, so `.github/workflows/external-data.yml` fetches them on GitHub's runners on push, every Monday, or on demand. It commits raw responses plus provenance (`*.meta.json`: URL, fetch time, status, SHA-256) to `data/external/`.
+- `python -m engine.external.build` turns them into `config/macro/generated/<ISO2>.yaml`. That file holds the CPI history and IMF projections; years after the fetch year minus one count as projections, which is a labelled assumption. The engine prefers this file over the manual `config/macro/<ISO2>.yaml`.
+- The workflow pushes to the working branch. Run `git pull --rebase` before pushing.
+- These are public statistics. They may be committed and bundled into the web page. CoStar data still may not.
+
 ## Model notes (Phases B and C)
 
 - Engine core is numpy and pandas only (no scipy or statsmodels) so the browser loads less.
 - Demand: AR(1) on normal-year log growth. Normal years exclude shock years, their recovery years (up to 2), COVID years (default), break years and partial years. Shrinkage toward `config/priors.yaml` with precision weights.
 - Shocks: a year falling more than 2 robust standard deviations below the median. "Severe" is a log fall beyond 0.5. Profiles come from history. Annual probabilities are Beta priors updated with the shock count.
-- ADR: nominal mode while `config/macro/FR.yaml` has no CPI history (recorded gap; the session network blocked Eurostat, INSEE, World Bank, ECB, OECD and FRED on 2026-11-06). CPI mode switches on automatically once values are entered there with sources.
+- ADR: CPI mode when inflation history and projections are available (from `config/macro/generated/`, fetched by the workflow). Otherwise it runs in nominal mode and the gap is recorded. The backtest forecasts inflation naively at each origin: the last observed rate decays to 2%.
 - Stub year: errors are calibrated on how the same rule performed in past years at the same month cutoff.
 - The backtest conditions on realised supply, picks residual type and COVID treatment by CRPS, and calibrates spread only if pooled ex-COVID P10 to P90 coverage falls outside 70% to 90%.
 

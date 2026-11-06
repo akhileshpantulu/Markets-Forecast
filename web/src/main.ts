@@ -44,6 +44,7 @@ interface Forecast {
     occ_annual_max: number; occ_annual_min: number; notes: string[] };
   backtest: { origins: number[]; chosen: string; spread: number; calibrated: boolean; coverage: Record<string, any>[];
     benchmarks: Record<string, any>[]; variants: Record<string, any>[]; notes: string[] };
+  macro?: { adr_mode: string; cpi_path: Record<string, number | null> | null; cpi_source: { publisher: string; title: string; url: string; accessed: string } | null; cpi_projection_note: string | null };
   gaps: string[]; assumptions: string[]; notes: string[];
   reports: { history_md: string; backtest_md: string; baseline_md: string };
 }
@@ -432,7 +433,7 @@ function forecastView(p: HTMLElement, r: Result) {
   p.append(
     h("div", { class: "privacy", style: "margin-bottom:14px" },
       `${f.meta.status}. Built from this market's history and pipeline only. ADR is in ${f.meta.adr_mode} mode`,
-      f.meta.adr_mode === "nominal" ? " because the CPI history is not loaded" : "", ". Model variant chosen by backtest: ", h("code", {}, f.meta.variant),
+      f.meta.adr_mode === "nominal" ? " because the CPI history is not loaded" : " (inflation plus pricing power)", ". Model variant chosen by backtest: ", h("code", {}, f.meta.variant),
       `. ${num(f.meta.paths)} paths, seed ${f.meta.seed}, computed in ${f.meta.seconds} s.`),
     h("h2", {}, "Headline"),
     h("p", { class: "note" }, "P50 in bold, then the P10 to P90 range. Growth is year over year; the stub year compares the full year (actual plus simulated months) with the prior full year."),
@@ -505,6 +506,10 @@ function forecastView(p: HTMLElement, r: Result) {
       h("li", {}, `Shocks found in history: ${(d.shock_years as number[]).join(", ") || "none"}. Annual probability: moderate ${pct(d.p_moderate)}, severe ${pct(d.p_severe)}.`),
       h("li", {}, `ADR (${a.mode} mode): drift ${signedPct(a.alpha)} a year, pricing power ${num(a.beta, 2)} (ADR moves ${num(a.beta, 2)}% per 1% occupancy change), noise ${pct(a.sigma_u)}, correlation with demand ${num(a.corr, 2)}.`),
       h("li", {}, `Occupancy ceiling ${pct(f.models.ceiling.annual)}. ${f.models.ceiling.basis}`),
+      f.macro?.cpi_path && f.macro.cpi_source ? h("li", {}, "Inflation path used for ADR: ",
+        Object.entries(f.macro.cpi_path).map(([y, v]) => `${y} ${pct(v)}`).join(", "), ". Source: ",
+        h("a", { href: f.macro.cpi_source.url, target: "_blank", rel: "noopener" }, `${f.macro.cpi_source.publisher}, ${f.macro.cpi_source.title}`),
+        `, accessed ${f.macro.cpi_source.accessed}. `, f.macro.cpi_projection_note ?? "") : null,
     ));
   const cs = f.covid_sensitivity;
   p.append(h("h2", {}, "COVID-years sensitivity"),

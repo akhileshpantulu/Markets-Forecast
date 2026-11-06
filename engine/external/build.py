@@ -31,7 +31,7 @@ def build_country(iso2: str, out: Path = OUT, gen: Path = GEN) -> Path | None:
         return None
     fetched = meta["fetched_at"][:10]
     split = int(fetched[:4]) - 1                     # last year treated as history
-    c = cpi[cpi["country"] == iso3].sort_values("year")
+    c = cpi[(cpi["country"] == iso3) & (cpi["year"] >= 1990)].sort_values("year")
     src = {"publisher": meta["publisher"], "title": meta["title"], "url": meta["url"], "accessed": fetched,
            "sha256": meta["sha256"]}
     doc = {
@@ -52,6 +52,10 @@ def build_country(iso2: str, out: Path = OUT, gen: Path = GEN) -> Path | None:
     }
     gdp, gmeta = load("imf_ngdp_rpch", out)
     if gdp is not None and not gdp.empty:
+        # DataMapper may return every country; keep the ones named in the request URL path.
+        wanted = [seg for seg in gmeta["url"].split("?")[0].split("/") if len(seg) == 3 and seg.isupper()]
+        if wanted:
+            gdp = gdp[gdp["country"].isin(wanted)]
         doc["real_gdp_growth"] = {
             "source": {"publisher": gmeta["publisher"], "title": gmeta["title"], "url": gmeta["url"], "accessed": gmeta["fetched_at"][:10]},
             "values": {cc: {int(r.year): round(r.value / 100, 6) for r in gdp[gdp["country"] == cc].itertuples()}

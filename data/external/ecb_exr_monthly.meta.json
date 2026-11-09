@@ -4,7 +4,7 @@
  "publisher": "European Central Bank",
  "title": "Euro reference exchange rates, monthly average (USD, GBP, CAD, CHF, CNY, JPY)",
  "format": "ecb_csv",
- "fetched_at": "2026-11-06T12:14:27+00:00",
+ "fetched_at": "2026-11-09T13:52:22+00:00",
  "http_status": 200,
  "content_type": "text/csv",
  "bytes": 269148,

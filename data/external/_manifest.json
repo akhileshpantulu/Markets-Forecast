@@ -1,107 +1,107 @@
 {
- "run_at": "2026-11-06T12:14:40+00:00",
+ "run_at": "2026-11-09T13:52:40+00:00",
  "results": [
   {
    "id": "eurostat_tour_occ_nim",
    "ok": true,
    "bytes": 40056,
-   "fetched_at": "2026-11-06T12:14:20+00:00"
+   "fetched_at": "2026-11-09T13:52:12+00:00"
   },
   {
    "id": "eurostat_tour_occ_arm",
    "ok": true,
    "bytes": 39152,
-   "fetched_at": "2026-11-06T12:14:20+00:00"
+   "fetched_at": "2026-11-09T13:52:13+00:00"
   },
   {
    "id": "eurostat_tour_occ_mnor",
    "ok": true,
    "bytes": 23468,
-   "fetched_at": "2026-11-06T12:14:21+00:00"
+   "fetched_at": "2026-11-09T13:52:14+00:00"
   },
   {
    "id": "eurostat_tour_occ_ninc",
    "ok": true,
    "bytes": 510191,
-   "fetched_at": "2026-11-06T12:14:23+00:00"
+   "fetched_at": "2026-11-09T13:52:15+00:00"
   },
   {
    "id": "eurostat_tour_ce_oarc",
    "ok": true,
    "bytes": 182980,
-   "fetched_at": "2026-11-06T12:14:23+00:00"
+   "fetched_at": "2026-11-09T13:52:17+00:00"
   },
   {
    "id": "eurostat_avia_paoa",
    "ok": true,
    "bytes": 6891,
-   "fetched_at": "2026-11-06T12:14:24+00:00"
+   "fetched_at": "2026-11-09T13:52:17+00:00"
   },
   {
    "id": "eurostat_avia_paoc",
    "ok": true,
    "bytes": 6629,
-   "fetched_at": "2026-11-06T12:14:24+00:00"
+   "fetched_at": "2026-11-09T13:52:18+00:00"
   },
   {
    "id": "eurostat_avia_paoac",
    "ok": true,
    "bytes": 57115,
-   "fetched_at": "2026-11-06T12:14:25+00:00"
+   "fetched_at": "2026-11-09T13:52:18+00:00"
   },
   {
    "id": "eurostat_prc_hicp_minr_cp112",
    "ok": true,
    "bytes": 17122,
-   "fetched_at": "2026-11-06T12:14:25+00:00"
+   "fetched_at": "2026-11-09T13:52:19+00:00"
   },
   {
    "id": "imf_ngdp_rpch",
    "ok": true,
    "bytes": 121784,
-   "fetched_at": "2026-11-06T12:14:26+00:00"
+   "fetched_at": "2026-11-09T13:52:20+00:00"
   },
   {
    "id": "imf_pcpipch",
    "ok": true,
    "bytes": 121340,
-   "fetched_at": "2026-11-06T12:14:26+00:00"
+   "fetched_at": "2026-11-09T13:52:20+00:00"
   },
   {
    "id": "imf_pcpipch_long",
    "ok": true,
    "bytes": 121340,
-   "fetched_at": "2026-11-06T12:14:26+00:00"
+   "fetched_at": "2026-11-09T13:52:20+00:00"
   },
   {
    "id": "imf_indicators",
    "ok": true,
    "bytes": 48417,
-   "fetched_at": "2026-11-06T12:14:27+00:00"
+   "fetched_at": "2026-11-09T13:52:21+00:00"
   },
   {
    "id": "ecb_exr_monthly",
    "ok": true,
    "bytes": 269148,
-   "fetched_at": "2026-11-06T12:14:27+00:00"
+   "fetched_at": "2026-11-09T13:52:22+00:00"
   },
   {
    "id": "ine_2058",
    "ok": true,
    "bytes": 439345,
-   "fetched_at": "2026-11-06T12:14:30+00:00"
+   "fetched_at": "2026-11-09T13:52:26+00:00"
   },
   {
    "id": "ine_2059",
    "ok": true,
    "bytes": 2024566,
-   "fetched_at": "2026-11-06T12:14:35+00:00"
+   "fetched_at": "2026-11-09T13:52:34+00:00"
   },
   {
    "id": "ine_46298",
    "ok": true,
    "bytes": 1889307,
-   "fetched_at": "2026-11-06T12:14:40+00:00"
+   "fetched_at": "2026-11-09T13:52:40+00:00"
   }
  ]
 }

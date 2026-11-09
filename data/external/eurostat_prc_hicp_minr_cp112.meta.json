@@ -4,7 +4,7 @@
  "publisher": "Eurostat",
  "title": "HICP accommodation services (COICOP CP112), monthly annual rate of change",
  "format": "jsonstat",
- "fetched_at": "2026-11-06T12:14:25+00:00",
+ "fetched_at": "2026-11-09T13:52:19+00:00",
  "http_status": 200,
  "content_type": "application/json",
  "bytes": 17122,

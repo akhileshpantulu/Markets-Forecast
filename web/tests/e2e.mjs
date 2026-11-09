@@ -58,16 +58,20 @@ async function exercise(page, url, label) {
   if (!verdict.includes("passed")) fail(`${label}: expected a passing validation, got "${verdict}"`);
   if (err) fail(`${label}: error box shown: ${await page.locator(".error-box").first().innerText()}`);
   if (fcRows !== 6) fail(`${label}: expected 6 forecast years in the headline table, got ${fcRows}`);
+  const ledgers = await page.locator(".year-story").count();
+  if (ledgers !== 6) fail(`${label}: expected 6 year ledgers, got ${ledgers}`);
+  const baseLine = await page.getByText("Long-run RevPAR CAGR", { exact: false }).count();
+  if (!baseLine) fail(`${label}: no baseline line in the ledger`);
   if (SHOTS) await page.screenshot({ path: join(SHOTS, `${label}-forecast.png`), fullPage: true });
-  await page.getByRole("tab", { name: "Overview" }).click();
-  const years = await page.locator(".panel table tbody tr").count();
-  if (years < 10) fail(`${label}: expected annual rows, got ${years}`);
-  for (const tab of ["History", "Backtest", "Pipeline and supply", "Checks", "Guardrails"]) {
+  for (const tab of ["Supply", "Data"]) {
     await page.getByRole("tab", { name: tab }).click();
     if (SHOTS) await page.screenshot({ path: join(SHOTS, `${label}-${tab.toLowerCase()}.png`), fullPage: true });
   }
-  // Assumptions: change a pipeline probability, add an event, rerun.
+  // Assumptions: change a fitted coefficient and a pipeline probability, add an event, rerun.
   await page.getByRole("tab", { name: /Assumptions/ }).click();
+  await page.fill("#set-supply-occ_response", "-0.9");
+  await page.dispatchEvent("#set-supply-occ_response", "change");
+  await page.locator("details.group > summary", { hasText: "Pipeline: chance" }).click();
   await page.fill("#set-pipeline-under_construction-p", "50");
   await page.dispatchEvent("#set-pipeline-under_construction-p", "change");
   await page.fill("input[name=title]", "Test event");
@@ -75,15 +79,14 @@ async function exercise(page, url, label) {
   await page.click("form.driver-form button[type=submit]");
   const t1 = Date.now();
   await page.getByRole("button", { name: "Rerun forecast" }).click();
-  await page.getByRole("button", { name: "Rerun forecast" }).waitFor({ timeout: 120_000 });
   await page.waitForFunction(() => !document.querySelector(".sticky-actions .btn.primary")?.hasAttribute("disabled"), null, { timeout: 120_000 });
   console.log(`[${label}] rerun with settings took ${Date.now() - t1} ms`);
   if (SHOTS) await page.screenshot({ path: join(SHOTS, `${label}-assumptions.png`), fullPage: true });
   await page.getByRole("tab", { name: "Forecast" }).click();
-  const banner = await page.getByText("This run uses your settings").count();
-  const drv = await page.getByText("Drivers in this forecast").count();
-  if (!banner) fail(`${label}: no user-adjustment banner after rerun`);
-  if (!drv) fail(`${label}: no driver table after adding a driver`);
+  const adj = await page.getByText("Your adjustments").count();
+  const drv = await page.locator(".year-story", { hasText: "Test event" }).count();
+  if (!adj) fail(`${label}: no adjustments section after rerun`);
+  if (!drv) fail(`${label}: the added driver does not appear in the ledger`);
   if (SHOTS) await page.screenshot({ path: join(SHOTS, `${label}-forecast-adjusted.png`), fullPage: true });
   if (errors.length) fail(`${label}: page errors: ${errors.join("; ")}`);
 }

@@ -68,6 +68,9 @@ class MarketConfig(BaseModel):
     reference_series: str | None = None
     airport: str | None = None
     events: str | None = None
+    # Tier whose rate is closest to the market's average (supply-quality lines). An assumption until a
+    # class-level CoStar export is loaded: luxury, upper_upscale, upscale, upper_midscale, midscale, economy.
+    average_tier: str | None = None
 
 
 def load_market_config(slug: str, config_dir: Path | None = None) -> MarketConfig:

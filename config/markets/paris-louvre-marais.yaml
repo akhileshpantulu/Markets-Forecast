@@ -39,3 +39,5 @@ ingest:
 reference_series: null                # user will upload a France country-level export
 airport: null                         # user will upload airport data
 events: null                          # user will upload an events list
+# Assumption (2026-11-09): tier closest to the market's average rate. Replace once class-level data is loaded.
+average_tier: upper_upscale

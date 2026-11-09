@@ -1,19 +1,23 @@
 # Hotel Market Forecast
 
-This tool forecasts occupancy, ADR and RevPAR growth for a hotel market. It covers the current year plus five full years, with probability ranges and named scenarios, and it works from CoStar exports.
+This tool forecasts occupancy, ADR and RevPAR growth for a hotel market, for the current year plus five full years, from CoStar exports.
 
-The build is in progress. What works today:
+Each year's forecast is a **ledger**: the market's long-run RevPAR CAGR, then named adjustments, each with its reason and its basis.
 
-- loading and checking the data
-- finding anomalies in the history, such as series breaks
-- a **provisional baseline forecast**: occupancy, ADR and RevPAR growth for the current year and five more, with P10 to P90 ranges. It is built only from the market's own history and hotel pipeline.
-- a backtest showing how often past forecasts' ranges contained what actually happened
-- a drag-and-drop web page that shows all of the above
+1. **Baseline.** The long-run RevPAR CAGR. Occupancy is held flat and rate carries the growth (you can split it by each CAGR instead). Rate also moves by inflation against its historical average.
+2. **Supply.**
+   - Hotel stock growing above or below its long-run trend, sized by how RevPAR responded across 298 European submarkets: occupancy -0.51 per point the same year, ADR -0.29 the next.
+   - Temporarily closed hotels reopening.
+   - The tier and product type of the hotels opening and closing, which move the market's average rate and occupancy.
+   - How directly the new rooms compete with the market's core.
+3. **Drivers.**
+   - Events, air access, source markets and exchange rates, taxes and policy, competing supply, and geopolitical risk.
+   - Each is sized by a calculator that shows its arithmetic, and weighted by its chance.
+   - Effects are sized by month and added up to the year.
 
-- **drivers**: events and risks, each with a probability and a size. They can come from a drivers file or be added on the page.
-- an **Assumptions tab** where you can change any weight or bias and rerun in a few seconds
+RevPAR growth equals occupancy growth combined with ADR growth. The P10 to P90 range comes from how far the long-run CAGR rule has missed historically, scaled to the market's own volatility, plus the uncertainty of the pipeline and the drivers.
 
-Scenarios, the memo and the Excel output come in later phases.
+Every coefficient is in `config/calibration.yaml` with its status: fitted on data, a labelled assumption, or your decision. You can change it on the page. Fitted values are refreshed from the private European panel with `python -m engine.ledger.calibrate`.
 
 ## Getting a drivers document
 
@@ -39,55 +43,25 @@ To build the document from card files you wrote or edited yourself, run `python 
 
 ## Adjusting assumptions (Assumptions tab)
 
-After a run, open **Assumptions**. You can change:
-
-- **Pipeline:** the chance each stage opens within the forecast. The defaults are under construction 90%, final planning 60%, planning 50%, proposed 40%. You can also change the most likely delay.
-- **Supply:** the share of rooms closed each year, how much demand new and reopened hotels bring, and hotels not yet in the export.
-- **Demand:** a tilt to the trend, in points of growth a year, and multipliers on the chance of a moderate or severe shock.
-- **ADR:** a tilt to the real drift, and the pricing rule. In normal years occupancy and rate trade off: more occupancy means less rate growth. Rate growth is also dampened when occupancy ran above the market's normal level the year before, and more steeply above 90%. Downturns still pull rate down with occupancy. Each coefficient and the 90% threshold can be changed.
-- **Inflation path, band width, and the occupancy ceiling.** The current and next years' inflation come from official near-term forecasts (UK: OBR; France: Banque de France), shown with their sources and IMF values under Models on the Forecast tab. Later years use the IMF.
-
-RevPAR growth always equals occupancy growth combined with ADR growth: the RevPAR P50 is built from the occupancy and ADR P50s.
-- **Drivers:** switch each one on or off, or change its chance of happening. You can add your own event or risk:
-  - Demand or ADR, as a percent of that year's level.
-  - A shock chance multiplier, for unrest or other risks.
-  - Extra rooms.
-  - Each can be one-off, temporary or permanent.
-  - Event chances follow a ladder unless you set them: rumour 17.5%, credible report 40%, announced 80%, tickets on sale 90%, held 100%.
-
-Press **Rerun forecast**. Your changes are listed at the top of the forecast and in the reports as user adjustments, so they stay separate from the model's estimates. Settings are remembered in your browser for each market. Use **Download settings** and **Download drivers** to keep or share them.
+The tab lists every coefficient with its basis and evidence, the pipeline probabilities by stage, the supply floor, the inflation path, and the drivers. Change any of them and press **Rerun forecast** (under a second). Your changes are listed on the forecast as your adjustments.
 
 ## The drag-and-drop page
 
 You drop your CoStar files onto the page, and the Python engine runs inside your browser. **Nothing is uploaded.** The page itself contains code only and no data, so it can be hosted publicly without exposing licensed CoStar data.
 
-Upload slots:
+Upload slots: **market performance** (CoStar DataTable export, monthly), **pipeline** (CoStar property export), and optionally **drivers** (the drivers.yaml from `/forecast`).
 
-| Slot | File | Status |
-| --- | --- | --- |
-| Market performance | CoStar DataTable export (monthly) | Working |
-| Pipeline | CoStar property export of pipeline hotels | Working |
-| Airline and airport data | To be defined from your example | Coming next |
-| Country performance | Country-level DataTable export | Coming next |
+After you click Run, the page has four tabs:
 
-After you click Run, the page shows:
-
-- the baseline forecast: headline table, fan charts against history, the current year split into actual and simulated months, and where each year sits in the market's own history
-- history: growth ranges, past downturns and recoveries, supply versus demand, seasonality
-- the backtest: coverage by years ahead, and a comparison with simple benchmarks
-- supply: expected supply growth and each project's chance of opening by year
-- annual and monthly history charts, plus the annual table
-- every validation check
-- the guardrails: series breaks, which years the model may fit on, and the influence check
-- the pipeline
-- the column mapping
-- the full report, which you can download
+- **Forecast:** headline table with P10 to P90 ranges, a chart against history, and each year's ledger with its reasons; downloads of forecast.md, ledger.csv and results.json.
+- **Supply:** inventory against its trend, openings, reopenings and closures by year, and each pipeline project's tier, product type and chance of opening.
+- **Assumptions:** every coefficient with its basis and evidence, the pipeline probabilities, the inflation path and the drivers. Change any and rerun.
+- **Data:** validation checks that need attention, the files read, series breaks, and validation.md.
 
 ### Option 1: GitHub Pages (free, from this repository)
 
-1. Merge the working branch into `main`.
-2. On GitHub, open the repository's **Settings > Pages**. Under **Build and deployment**, set **Source** to **GitHub Actions**.
-3. Pushes to `main` that touch the web page or the engine now publish the site automatically through `.github/workflows/pages.yml`. You can also start it by hand from **Actions > deploy-web > Run workflow**.
+1. On GitHub, open the repository's **Settings > Pages**. Under **Build and deployment**, set **Source** to **GitHub Actions**.
+2. Every push to the working branch or `main` that touches the page, the engine or the config publishes the site automatically through `.github/workflows/pages.yml`, as does each finished public-data refresh.
 4. The page will be at `https://akhileshpantulu.github.io/Markets-Forecast/`.
 
 ### Option 2: Vercel

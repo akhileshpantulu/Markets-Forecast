@@ -1,0 +1,45 @@
+# Past events measured in the private panel (python -m engine.ledger.calibrate) to size new events.
+# Dates and host cities are public facts from the organisers. The session network blocks these
+# sites, so they were not fetched on 2026-11-09: verify before relying on a date.
+events:
+  - id: paris-olympics-2024
+    name: Paris 2024 Olympic Games
+    type: mega_multi_sport
+    year: 2024
+    months: [7, 8]
+    markets: [Paris FRA, Île-de-France FRA]
+    dates: 26 Jul to 11 Aug 2024
+    source: {publisher: International Olympic Committee, url: "https://www.olympics.com/en/olympic-games/paris-2024", accessed: not fetched}
+  - id: milano-cortina-2026
+    name: Milano Cortina 2026 Winter Olympic Games
+    type: mega_multi_sport
+    year: 2026
+    months: [2]
+    markets: [Milan ITA]
+    dates: 6 to 22 Feb 2026
+    source: {publisher: Milano Cortina 2026, url: "https://www.olympics.com/en/olympic-games/milano-cortina-2026", accessed: not fetched}
+  - id: euro-2024
+    name: UEFA Euro 2024, Germany
+    type: major_football_tournament
+    year: 2024
+    months: [6, 7]
+    markets: [Berlin DEU, Munich DEU, Ruhr DEU, Stuttgart DEU, Hamburg DEU, Dusseldorf DEU, Cologne DEU, Frankfurt Rhine-Main DEU]
+    dates: 14 Jun to 14 Jul 2024
+    source: {publisher: UEFA, url: "https://www.uefa.com/euro2024/", accessed: not fetched}
+  - id: rugby-world-cup-2023
+    name: Rugby World Cup 2023, France
+    type: rugby_world_cup
+    year: 2023
+    months: [9, 10]
+    markets: [Paris FRA, Provence-Alpes-CDA FRA, Auvergne-Rhone-Alpes FRA, Nouvelle-Aquitaine FRA, Pays de la Loire & Centre FRA, Occitanie FRA, Hauts-de-France FRA]
+    dates: 8 Sep to 28 Oct 2023
+    source: {publisher: World Rugby, url: "https://www.rugbyworldcup.com/2023", accessed: not fetched}
+  - id: rome-jubilee-2025
+    name: Jubilee 2025, Rome
+    type: year_long_religious
+    year: 2025
+    months: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+    markets: [Rome ITA]
+    comparison_markets: [Milan ITA, Florence ITA, Mestre & Venice ITA, Turin ITA]
+    dates: 24 Dec 2024 to 6 Jan 2026
+    source: {publisher: Dicastery for Evangelization (Holy See), url: "https://www.iubilaeum2025.va/en.html", accessed: not fetched}

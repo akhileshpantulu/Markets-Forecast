@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 Category = Literal["air_access", "supply", "events", "macro", "fx", "geopolitical", "policy", "corporate", "mice",
                    "leisure_sentiment", "regulation", "infrastructure", "other"]
@@ -74,6 +74,14 @@ class Evidence(BaseModel):
     accessed: str
 
 
+class Calculator(BaseModel):
+    """Layer 3 sizing calculator (engine/ledger/calculators.py). When present, the engine computes the
+    size from these inputs and the card's magnitude is filled from the result."""
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["event", "air_capacity", "source_market", "price_change", "competing_supply"]
+    inputs: dict = {}
+
+
 class DriverCard(BaseModel):
     model_config = ConfigDict(extra="forbid")
     id: str
@@ -87,8 +95,10 @@ class DriverCard(BaseModel):
     probability: float | None = Field(None, ge=0, le=1)
     event_status: EventStatus | None = None
     probability_note: str = ""
-    magnitude: Magnitude
+    magnitude: Magnitude | None = None
     magnitude_note: str = ""
+    calculator: Calculator | None = None
+    tier: str | None = None                   # supply cards: CoStar chain scale of the added rooms
     conditional_on: list[str] = []
     already_in_baseline: Literal["none", "partial", "full"]
     baseline_overlap_note: str = ""
@@ -99,6 +109,12 @@ class DriverCard(BaseModel):
     status: Literal["proposed", "approved", "rejected"] = "proposed"
     reviewer_note: str = ""
     origin: Literal["research", "user"] = "research"
+
+    @model_validator(mode="after")
+    def _need_size(self):
+        if self.magnitude is None and self.calculator is None:
+            raise ValueError("a driver needs a magnitude or a calculator")
+        return self
 
     def resolved_shape(self) -> str:
         if self.shape:

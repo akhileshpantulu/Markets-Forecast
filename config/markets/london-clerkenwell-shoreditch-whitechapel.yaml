@@ -31,3 +31,5 @@ ingest:
 reference_series: null
 airport: null
 events: null
+# Assumption (2026-11-09): tier closest to the market's average rate. Replace once class-level data is loaded.
+average_tier: upscale

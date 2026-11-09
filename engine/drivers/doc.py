@@ -28,6 +28,9 @@ SHAPE = {"one_off": "one-off (that year only; the next year grows from a normal 
 
 
 def _size(c: DriverCard) -> str:
+    if c.magnitude is None:
+        ins = ", ".join(f"{k} {v}" for k, v in (c.calculator.inputs or {}).items())
+        return f"sized by the {c.calculator.type.replace('_', ' ')} calculator from: {ins}"
     m = c.magnitude
     if m.unit == "rooms":
         return f"{m.low:g} to {m.high:g} rooms, most likely {m.mode:g}"

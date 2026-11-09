@@ -61,6 +61,9 @@ Percentages to one decimal place; occupancy points to one decimal place.
 | RevPAR identity (2026-11-06) | RevPAR growth = occupancy growth combined with ADR growth. The reported RevPAR P50 is (1 + occupancy P50) x (1 + ADR P50) - 1, and the RevPAR level P50 is occupancy P50 x ADR P50. The median of simulated RevPAR stays in the output as `p50_paths`. Bands (P10 to P90) are from the simulated RevPAR. |
 | Pricing rule (2026-11-06) | Occupancy and rate trade off ("both" forms). In normal years ADR moves inversely to occupancy change beyond trend (`occ_change_response`, assumption -0.25; history shows a positive slope, so it is a judgement). Rate growth is dampened by last year's occupancy above the market's normal level (fitted, shrunk, never positive) and more steeply above 90% (assumption -0.5). Downturns and recoveries still pass through to rate at the fitted coefficient. The previous rule is always run as a sensitivity. |
 | Near-term inflation (2026-11-06) | The current and next years come from official near-term forecasts in `config/macro/near_term/<ISO2>.yaml`, sourced and dated, refreshed by `/forecast`. IMF fills later years. UK: OBR calendar-year CPI (the Bank of England publishes Q4 rates only). France: Banque de France HICP. |
+| Ledger forecast (2026-11-09) | The central forecast is a ledger: baseline (long-run RevPAR CAGR, occupancy flat by default) plus named lines for supply, supply quality and drivers, each with its reason and basis. A simulation produces only the ranges. Coefficients live in `config/calibration.yaml`, fitted on the European panel where possible, adjustable on the page, and refined as the track record grows. Drivers are sized monthly and rolled up to the year. |
+| Supply quality (2026-11-09) | The tier (CoStar chain scale) and product type of new, reopening and closing hotels move market rate and occupancy through mix, and new rooms compete less the further their tier sits from the market's average. Applies to both rate and occupancy. |
+| Site (2026-11-09) | Slimmed to four tabs: Forecast, Supply, Assumptions, Data. The page redeploys automatically on every push. |
 | Supply source (2026-11-06) | The pipeline drives supply but is not the only source. Supply never falls below the long-run supply trend, from the first forecast year. Only pipeline rooms above the trend bring extra demand. |
 
 ## Architecture decisions
@@ -69,6 +72,7 @@ Percentages to one decimal place; occupancy points to one decimal place.
 - Core functions take bytes or DataFrames. Disk I/O lives in thin CLI modules such as `engine/ingest/run.py`. Browser code calls the core directly.
 - **Guardrail layer.** Every estimator takes its history from `engine/history/sample.py` (`build_growth_sample`, `usable`) and passes its fit through `influence_check`. Never fit on raw annual growth directly. `engine/history/anomalies.py` finds persistent uniform level breaks: 12 months moving the same way by more than 25%, with no reversal afterwards and no opposite move before. Confirmed breaks are excluded from growth estimation automatically and pre-break levels are spliced. Steps too recent to confirm are flagged for review and kept. Users override per break in `estimation.series_breaks`. The user approved this automatic rule on 2026-11-06.
 - **Web page.** `web/` (Vite + TypeScript + ECharts) is a drag-and-drop page. The Python engine runs in a Web Worker through Pyodide, and on the main thread when `forecast-app.html` is opened from disk. The browser entry point is `engine/web_api.py`. The site contains code only; `web/scripts/check-dist.mjs` fails a build that contains data. `web/tests/e2e.mjs` drives both builds in Chromium.
+- **Ledger forecast (`engine/ledger/`)** is the forecast engine (the CLI and the page). `run.py` builds each year as lines in three layers (baseline, supply volume and quality, drivers); `calculators.py` sizes drivers (event, air_capacity, source_market, price_change, competing_supply) with written-out working; `registry.py` reads `config/calibration.yaml`; `calibrate.py` fits the registry on the private panel; `archive.py` stores forecasts in the private repo and reviews them against actuals; `report.py` writes forecast.md. The older stochastic engine (`engine/forecast.py` and its modules) is kept as reference and still tested, but nothing user-facing calls it.
 - The research agents (drivers, critic, memo) run in Claude Code sessions, not in the browser. The hosted page runs the deterministic steps: ingest, history, baseline, supply, simulation, backtest, and what-if analysis. It applies driver and scenario files that come from a run.
 
 ## Internal schema
@@ -106,8 +110,18 @@ Each evidence item records `claim, url, publisher, published, accessed`. Primary
   - agent definitions in `.claude/agents/` and the `/forecast` command in `.claude/commands/`
 - Phase D research: run for London (8 proposed cards, local only). Not yet run for Paris.
 - `/forecast <market>` produces a drivers document only: researchers write `runs/<market>/drivers_<agent>.yaml` in parallel, the critic sets status, and `python -m engine.drivers.doc <market>` merges and checks them into `drivers.yaml` (for the page's Drivers slot) and `drivers.md` (readable). The forecast itself runs on the page. CoStar exports or the page's results.json are optional inputs that let the critic check overlap with the baseline.
-- Web page: Forecast, History, Backtest, Assumptions, supply and data views. Airline and country slots wait for example files.
-- Phases E to H: not started. Scenarios, memo and Excel, a full frontend pass, and automation remain.
+- Ledger rebuild (2026-11-09): done. Calibrated on the European panel (snapshot 2026-09): supply response, CAGR-rule error library (ranges), downturn rate and depth, event analogs.
+- Web page: Forecast, Supply, Assumptions, Data. Upload slots: performance, pipeline, drivers.
+- Not yet built: scenarios with explicit paths, the Excel output, class-level calibration of the tier indices (needs class exports).
+
+## Ledger: how a year is built
+
+- Layer 1, baseline: long-run RevPAR CAGR over the anchor window (after confirmed breaks, ending at the last non-COVID year). Occupancy flat by default, rate carries it; option to split by each CAGR. Inflation line: pass-through x (forecast inflation - historical average); near-term from `config/macro/near_term/`.
+- Layer 2, supply: inventory growth against its long-run trend x fitted coefficients (same year and next year); reopenings of temporarily closed hotels (rooms return, a share of demand returns); tier and product mix of rooms opening and closing (arithmetic blend of tier rate and occupancy indices against the market's average tier); competitive overlap (new rooms compete `overlap_decay`^steps as directly). Supply floor: inventory never grows below its long-run trend.
+- Layer 3, drivers: each card's expected effect = chance x mean size x timing profile (one-off pays back next year). Calculators size cards from stated inputs; monthly effects roll up with the market's monthly demand and revenue shares. Shock-probability cards use the panel's downturn rate and depth.
+- Ranges: the CAGR rule's historical miss (panel error library by horizon, Gaussian copula, centred), scaled to the market's own spread of annual growth (shrunk to the European norm), plus pipeline and driver draws. The central number is the ledger; RevPAR = (1 + occupancy) x (1 + ADR) - 1.
+- Track record: `python -m engine <market> --archive` stores the forecast in `marketsdata/forecasts/`; `python -m engine.ledger.archive review <market>` compares with actuals once the panel has them.
+- Recalibrate after a panel update: `python -m engine.ledger.calibrate` (needs `/home/user/marketsdata`). Only pooled values go into the public registry; per-event and per-submarket results go to `marketsdata/derived/`.
 
 ## Drivers and settings
 
@@ -165,7 +179,9 @@ Each evidence item records `claim, url, publisher, published, accessed`. Primary
 - `python -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt`
 - `python -m pytest`
 - `python -m engine.ingest <market-slug> [--no-move] [--inbox PATH]`
-- `python -m engine <market-slug> [--inbox PATH] [--move] [--paths N]`: ingest, validate, forecast; writes history.md, backtest.md, baseline.md, results.json
+- `python -m engine <market-slug> [--inbox PATH] [--drivers YAML] [--settings JSON] [--archive]`: ingest, validate, ledger forecast; writes validation.md, forecast.md, results.json
+- `python -m engine.ledger.calibrate [--data-dir PATH] [--dry-run]`: refit config/calibration.yaml on the private panel
+- `python -m engine.ledger.archive review <market-slug>`: archived forecasts against actuals
 - `cd web && npm ci && npm run build:all` builds `web/dist` (site) and `web/dist/forecast-app.html` (single file)
 - `cd web && PYODIDE_DIR=<local pyodide> node tests/e2e.mjs` runs the browser end-to-end test (omit `PYODIDE_DIR` to use the CDN)
 - `/forecast <market-slug>`: research, critic and drivers document for one market

@@ -25,6 +25,8 @@ Run the `supply-analyst`, `demand-researcher` and `geopolitics-analyst` agents a
 - `runs/$ARGUMENTS/drivers_demand.yaml`
 - `runs/$ARGUMENTS/drivers_geopolitics.yaml` (plus `event_maps.md`)
 
+Researchers size cards with the calculators in `engine/ledger/calculators.py` wherever the inputs can be stated, so each driver's size shows its arithmetic in the forecast.
+
 ## 2. Critic
 
 Run the `critic` agent on the three files. It approves or rejects each card with a `reviewer_note`, edits the card files in place, and writes `runs/$ARGUMENTS/critique.md`. A rejected card goes back to its author once. Anything still unresolved stays `proposed` and is listed for the user.

@@ -17,3 +17,5 @@ Tasks:
    - every card states `already_in_baseline` and why. Supply never falls below the market's long-run supply trend from the first forecast year, so a card is only for supply beyond that trend.
 4. Never copy CoStar rows or figures into a card's evidence. Cards may cite public sources only.
 5. Status `proposed`. The critic and the user approve.
+
+Give every supply card a `tier` (CoStar chain scale of the added rooms: Luxury, Upper Upscale, Upscale, Upper Midscale, Midscale, Economy) so the supply-quality lines can price it, and note product types (aparthotel, hostel) in the title. Flag in `research_supply.md` if the market's `average_tier` in `config/markets/<market>.yaml` looks wrong.

@@ -1,0 +1,881 @@
+version: 1
+calibrated_on: '2026-11-09'
+panel_snapshot: 2026-09
+groups:
+- id: baseline
+  title: Baseline
+  help: The long-run RevPAR CAGR of the market's own history. By default occupancy is held flat and rate carries the growth.
+- id: supply
+  title: Supply above trend
+  help: Effect of supply growth above the market's long-run supply trend, measured across European submarkets.
+- id: quality
+  title: Supply quality
+  help: How the tier and product type of new and closing hotels move market rate and occupancy. Tier indices are relative
+    to Upscale = 1.0.
+- id: events
+  title: Events (analog defaults)
+  help: Effects measured in past events' host submarkets, used when an event card gives no attendance figures. Log points
+    in the event months.
+- id: calculators
+  title: Driver calculators
+  help: Defaults used by the driver calculators when a card does not state them.
+- id: shocks
+  title: Downturn risk
+  help: Base rate and depth of downturns, used to size drivers that raise the chance of a downturn. The baseline already contains
+    the historical rate.
+- id: ranges
+  title: Ranges
+  help: The P10 to P90 range comes from how far the long-run CAGR rule has missed across European submarkets, scaled to this
+    market's own volatility.
+params:
+  baseline.occupancy_split:
+    group: baseline
+    label: How the baseline splits RevPAR growth
+    kind: select
+    options:
+    - - flat
+      - Occupancy flat; rate carries the RevPAR CAGR
+    - - historical
+      - Occupancy and ADR at their own long-run CAGRs
+    value: flat
+    status: user_decision
+    evidence: The user's practice (2026-11-09) holds occupancy flat unless a demand driver moves it.
+  baseline.start_year:
+    group: baseline
+    label: Long-run CAGR from year (blank for the first clean year)
+    kind: year
+    min: 1990
+    max: 2030
+    step: 1
+    value: null
+    status: default
+    evidence: The window starts after the last confirmed data break and ends at the last complete non-COVID year.
+  baseline.inflation_pass_through:
+    group: baseline
+    label: ADR points per point of inflation above its historical average
+    kind: number
+    min: 0
+    max: 3
+    step: 0.1
+    value: 1.0
+    status: assumption
+    evidence: 'Same-year fit 2026-11-09: London 1.21 (se 0.96), Paris 4.55 (se 1.32, reflects the economic cycle). Too noisy
+      to fit; 1:1 kept.'
+  supply.occ_response:
+    group: supply
+    label: Occupancy % per 1% of supply growth above trend, same year
+    kind: number
+    min: -1.5
+    max: 0.5
+    step: 0.01
+    value: -0.5067
+    status: fitted
+    evidence: 'European panel, CoStar snapshot 2026-09: 295 submarkets, 4672 submarket-years (1998 to 2025, COVID years excluded);
+      two-way fixed effects, standard errors clustered by submarket. Estimate -0.507 (se 0.044).'
+    fitted_on: '2026-11-09'
+  supply.occ_response_next_year:
+    group: supply
+    label: Occupancy % per 1% of supply growth above trend, next year
+    kind: number
+    min: -1.5
+    max: 0.5
+    step: 0.01
+    value: 0.0592
+    status: fitted
+    evidence: 'European panel, CoStar snapshot 2026-09: 295 submarkets, 4672 submarket-years (1998 to 2025, COVID years excluded);
+      two-way fixed effects, standard errors clustered by submarket. Estimate +0.059 (se 0.043).'
+    fitted_on: '2026-11-09'
+  supply.adr_response:
+    group: supply
+    label: ADR % per 1% of supply growth above trend, same year
+    kind: number
+    min: -1.5
+    max: 0.5
+    step: 0.01
+    value: -0.0419
+    status: fitted
+    evidence: 'European panel, CoStar snapshot 2026-09: 295 submarkets, 4672 submarket-years (1998 to 2025, COVID years excluded);
+      two-way fixed effects, standard errors clustered by submarket. Estimate -0.042 (se 0.061).'
+    fitted_on: '2026-11-09'
+  supply.adr_response_next_year:
+    group: supply
+    label: ADR % per 1% of supply growth above trend, next year
+    kind: number
+    min: -1.5
+    max: 0.5
+    step: 0.01
+    value: -0.2923
+    status: fitted
+    evidence: 'European panel, CoStar snapshot 2026-09: 295 submarkets, 4672 submarket-years (1998 to 2025, COVID years excluded);
+      two-way fixed effects, standard errors clustered by submarket. Estimate -0.292 (se 0.054).'
+    fitted_on: '2026-11-09'
+  quality.average_tier:
+    group: quality
+    label: Tier closest to the market's average rate (blank for the market configuration)
+    kind: select
+    options:
+    - - auto
+      - From the market configuration
+    - - luxury
+      - Luxury
+    - - upper_upscale
+      - Upper Upscale
+    - - upscale
+      - Upscale
+    - - upper_midscale
+      - Upper Midscale
+    - - midscale
+      - Midscale
+    - - economy
+      - Economy
+    value: auto
+    status: assumption
+    evidence: Needs a class-level CoStar export to measure. Set per market in config/markets.
+  quality.adr_index.luxury:
+    group: quality
+    label: 'ADR index: Luxury'
+    kind: number
+    min: 0.2
+    max: 5
+    step: 0.05
+    value: 2.3
+    status: assumption
+    evidence: Typical European chain-scale rate ladder; replace with class-level CoStar data.
+  quality.adr_index.upper_upscale:
+    group: quality
+    label: 'ADR index: Upper Upscale'
+    kind: number
+    min: 0.2
+    max: 5
+    step: 0.05
+    value: 1.45
+    status: assumption
+    evidence: Typical European chain-scale rate ladder; replace with class-level CoStar data.
+  quality.adr_index.upscale:
+    group: quality
+    label: 'ADR index: Upscale'
+    kind: number
+    min: 0.2
+    max: 5
+    step: 0.05
+    value: 1.0
+    status: assumption
+    evidence: Reference tier.
+  quality.adr_index.upper_midscale:
+    group: quality
+    label: 'ADR index: Upper Midscale'
+    kind: number
+    min: 0.2
+    max: 5
+    step: 0.05
+    value: 0.78
+    status: assumption
+    evidence: Typical European chain-scale rate ladder; replace with class-level CoStar data.
+  quality.adr_index.midscale:
+    group: quality
+    label: 'ADR index: Midscale'
+    kind: number
+    min: 0.2
+    max: 5
+    step: 0.05
+    value: 0.65
+    status: assumption
+    evidence: Typical European chain-scale rate ladder; replace with class-level CoStar data.
+  quality.adr_index.economy:
+    group: quality
+    label: 'ADR index: Economy'
+    kind: number
+    min: 0.2
+    max: 5
+    step: 0.05
+    value: 0.5
+    status: assumption
+    evidence: Typical European chain-scale rate ladder; replace with class-level CoStar data.
+  quality.occ_index.luxury:
+    group: quality
+    label: 'Occupancy index: Luxury'
+    kind: number
+    min: 0.5
+    max: 1.5
+    step: 0.01
+    value: 0.93
+    status: assumption
+    evidence: Higher tiers usually run slightly lower occupancy; replace with class-level CoStar data.
+  quality.occ_index.upper_upscale:
+    group: quality
+    label: 'Occupancy index: Upper Upscale'
+    kind: number
+    min: 0.5
+    max: 1.5
+    step: 0.01
+    value: 0.98
+    status: assumption
+    evidence: Replace with class-level CoStar data.
+  quality.occ_index.upscale:
+    group: quality
+    label: 'Occupancy index: Upscale'
+    kind: number
+    min: 0.5
+    max: 1.5
+    step: 0.01
+    value: 1.0
+    status: assumption
+    evidence: Reference tier.
+  quality.occ_index.upper_midscale:
+    group: quality
+    label: 'Occupancy index: Upper Midscale'
+    kind: number
+    min: 0.5
+    max: 1.5
+    step: 0.01
+    value: 1.01
+    status: assumption
+    evidence: Replace with class-level CoStar data.
+  quality.occ_index.midscale:
+    group: quality
+    label: 'Occupancy index: Midscale'
+    kind: number
+    min: 0.5
+    max: 1.5
+    step: 0.01
+    value: 0.99
+    status: assumption
+    evidence: Replace with class-level CoStar data.
+  quality.occ_index.economy:
+    group: quality
+    label: 'Occupancy index: Economy'
+    kind: number
+    min: 0.5
+    max: 1.5
+    step: 0.01
+    value: 1.02
+    status: assumption
+    evidence: Budget hotels often run the highest occupancy; replace with class-level CoStar data.
+  quality.overlap_decay:
+    group: quality
+    label: How directly new rooms compete, per tier step away from the market average (1 = fully)
+    kind: number
+    min: 0
+    max: 1
+    step: 0.05
+    value: 0.55
+    status: assumption
+    evidence: New rooms compete most with their own tier. The supply response above is taken to describe new rooms at the
+      market's average tier.
+  quality.exit_tier:
+    group: quality
+    label: Tier of hotels that close or convert
+    kind: select
+    options:
+    - - midscale
+      - Midscale
+    - - economy
+      - Economy
+    - - upper_midscale
+      - Upper Midscale
+    - - average
+      - Market average
+    value: midscale
+    status: assumption
+    evidence: Closures and conversions to residential or student housing are mostly older, lower-tier stock.
+  quality.unannounced_tier:
+    group: quality
+    label: Tier of hotels not yet in the pipeline (supply that keeps the market on its trend)
+    kind: select
+    options:
+    - - average
+      - Market average
+    - - upper_midscale
+      - Upper Midscale
+    - - upscale
+      - Upscale
+    - - midscale
+      - Midscale
+    value: average
+    status: assumption
+    evidence: No information; neutral by default.
+  quality.product.aparthotel.adr:
+    group: quality
+    label: 'Aparthotels: ADR relative to their tier'
+    kind: number
+    min: 0.3
+    max: 1.5
+    step: 0.05
+    value: 0.9
+    status: assumption
+    evidence: Longer stays at lower nightly rates. Detected from the project name (aparthotel, serviced, residence).
+  quality.product.aparthotel.occ:
+    group: quality
+    label: 'Aparthotels: occupancy relative to their tier'
+    kind: number
+    min: 0.5
+    max: 1.5
+    step: 0.01
+    value: 1.04
+    status: assumption
+    evidence: Longer stays fill more nights.
+  quality.product.hostel.adr:
+    group: quality
+    label: 'Hostels: ADR relative to their tier'
+    kind: number
+    min: 0.1
+    max: 1.5
+    step: 0.05
+    value: 0.45
+    status: assumption
+    evidence: Detected from the project name (hostel).
+  quality.product.hostel.occ:
+    group: quality
+    label: 'Hostels: occupancy relative to their tier'
+    kind: number
+    min: 0.5
+    max: 1.5
+    step: 0.01
+    value: 1.05
+    status: assumption
+    evidence: Hostels sell by the bed and run high occupancy.
+  events.mega_multi_sport.occ:
+    group: events
+    label: 'Olympic-scale events: occupancy in event months'
+    kind: number
+    min: -0.5
+    max: 0.5
+    step: 0.01
+    value: 0.0393
+    status: fitted
+    evidence: 'European panel, CoStar snapshot 2026-09: median of 2 event(s), 18 host submarkets; event months against the
+      same year''s other months.'
+    fitted_on: '2026-11-09'
+  events.mega_multi_sport.adr:
+    group: events
+    label: 'Olympic-scale events: ADR in event months'
+    kind: number
+    min: -0.5
+    max: 1.5
+    step: 0.01
+    value: 0.5124
+    status: fitted
+    evidence: 'European panel, CoStar snapshot 2026-09: median of 2 event(s), 18 host submarkets; event months against the
+      same year''s other months.'
+    fitted_on: '2026-11-09'
+  events.mega_multi_sport.adr_month_before:
+    group: events
+    label: 'Olympic-scale events: ADR in the month before'
+    kind: number
+    min: -0.5
+    max: 1.0
+    step: 0.01
+    value: 0.0286
+    status: fitted
+    evidence: 'European panel, CoStar snapshot 2026-09: median of 2 event(s), 18 host submarkets; event months against the
+      same year''s other months.'
+    fitted_on: '2026-11-09'
+  events.mega_multi_sport.adr_month_after:
+    group: events
+    label: 'Olympic-scale events: ADR in the month after'
+    kind: number
+    min: -0.5
+    max: 1.0
+    step: 0.01
+    value: 0.056
+    status: fitted
+    evidence: 'European panel, CoStar snapshot 2026-09: median of 2 event(s), 18 host submarkets; event months against the
+      same year''s other months.'
+    fitted_on: '2026-11-09'
+  events.major_football_tournament.occ:
+    group: events
+    label: 'Major football tournaments: occupancy in event months'
+    kind: number
+    min: -0.5
+    max: 0.5
+    step: 0.01
+    value: 0.019
+    status: fitted
+    evidence: 'European panel, CoStar snapshot 2026-09: median of 1 event(s), 24 host submarkets; event months against the
+      same year''s other months.'
+    fitted_on: '2026-11-09'
+  events.major_football_tournament.adr:
+    group: events
+    label: 'Major football tournaments: ADR in event months'
+    kind: number
+    min: -0.5
+    max: 1.5
+    step: 0.01
+    value: 0.1336
+    status: fitted
+    evidence: 'European panel, CoStar snapshot 2026-09: median of 1 event(s), 24 host submarkets; event months against the
+      same year''s other months.'
+    fitted_on: '2026-11-09'
+  events.major_football_tournament.adr_month_before:
+    group: events
+    label: 'Major football tournaments: ADR in the month before'
+    kind: number
+    min: -0.5
+    max: 1.0
+    step: 0.01
+    value: -0.0266
+    status: fitted
+    evidence: 'European panel, CoStar snapshot 2026-09: median of 1 event(s), 24 host submarkets; event months against the
+      same year''s other months.'
+    fitted_on: '2026-11-09'
+  events.major_football_tournament.adr_month_after:
+    group: events
+    label: 'Major football tournaments: ADR in the month after'
+    kind: number
+    min: -0.5
+    max: 1.0
+    step: 0.01
+    value: -0.0084
+    status: fitted
+    evidence: 'European panel, CoStar snapshot 2026-09: median of 1 event(s), 24 host submarkets; event months against the
+      same year''s other months.'
+    fitted_on: '2026-11-09'
+  events.rugby_world_cup.occ:
+    group: events
+    label: 'Rugby World Cup: occupancy in event months'
+    kind: number
+    min: -0.5
+    max: 0.5
+    step: 0.01
+    value: -0.0317
+    status: fitted
+    evidence: 'European panel, CoStar snapshot 2026-09: median of 1 event(s), 37 host submarkets; event months against the
+      same year''s other months.'
+    fitted_on: '2026-11-09'
+  events.rugby_world_cup.adr:
+    group: events
+    label: 'Rugby World Cup: ADR in event months'
+    kind: number
+    min: -0.5
+    max: 1.5
+    step: 0.01
+    value: -0.0115
+    status: fitted
+    evidence: 'European panel, CoStar snapshot 2026-09: median of 1 event(s), 37 host submarkets; event months against the
+      same year''s other months.'
+    fitted_on: '2026-11-09'
+  events.rugby_world_cup.adr_month_before:
+    group: events
+    label: 'Rugby World Cup: ADR in the month before'
+    kind: number
+    min: -0.5
+    max: 1.0
+    step: 0.01
+    value: -0.0404
+    status: fitted
+    evidence: 'European panel, CoStar snapshot 2026-09: median of 1 event(s), 37 host submarkets; event months against the
+      same year''s other months.'
+    fitted_on: '2026-11-09'
+  events.rugby_world_cup.adr_month_after:
+    group: events
+    label: 'Rugby World Cup: ADR in the month after'
+    kind: number
+    min: -0.5
+    max: 1.0
+    step: 0.01
+    value: -0.0569
+    status: fitted
+    evidence: 'European panel, CoStar snapshot 2026-09: median of 1 event(s), 37 host submarkets; event months against the
+      same year''s other months.'
+    fitted_on: '2026-11-09'
+  events.year_long_religious.occ:
+    group: events
+    label: 'Year-long religious events (Jubilee): occupancy, whole year'
+    kind: number
+    min: -0.5
+    max: 0.5
+    step: 0.01
+    value: -0.0185
+    status: fitted
+    evidence: 'European panel, CoStar snapshot 2026-09: median of 1 event(s), 7 host submarkets; event months against the
+      same year''s other months.'
+    fitted_on: '2026-11-09'
+  events.year_long_religious.adr:
+    group: events
+    label: 'Year-long religious events (Jubilee): ADR, whole year'
+    kind: number
+    min: -0.5
+    max: 1.0
+    step: 0.01
+    value: 0.0398
+    status: fitted
+    evidence: 'European panel, CoStar snapshot 2026-09: median of 1 event(s), 7 host submarkets; event months against the
+      same year''s other months.'
+    fitted_on: '2026-11-09'
+  events.analog_range:
+    group: events
+    label: Range around an analog-based event effect (share of the effect, either side)
+    kind: number
+    min: 0
+    max: 1.5
+    step: 0.05
+    value: 0.5
+    status: assumption
+    evidence: Host submarkets vary widely around the median effect.
+  calc.guests_per_room:
+    group: calculators
+    label: Guests per occupied room
+    kind: number
+    min: 1
+    max: 4
+    step: 0.1
+    value: 1.6
+    status: assumption
+    evidence: Typical leisure and event mix.
+  calc.hotel_share:
+    group: calculators
+    label: Share of overnight visitors who stay in hotels
+    kind: percent
+    min: 0
+    max: 1
+    step: 0.05
+    value: 0.6
+    status: assumption
+    evidence: The rest stay with friends
+    in short-term rentals or elsewhere.: null
+  calc.out_of_town_share:
+    group: calculators
+    label: 'Events: share of attendees from out of town'
+    kind: percent
+    min: 0
+    max: 1
+    step: 0.05
+    value: 0.6
+    status: assumption
+    evidence: Replace with the organiser's figure where published.
+  calc.event_nights:
+    group: calculators
+    label: 'Events: nights per out-of-town attendee'
+    kind: number
+    min: 0
+    max: 14
+    step: 0.5
+    value: 2.0
+    status: assumption
+    evidence: Replace with the organiser's figure where published.
+  calc.displacement_share:
+    group: calculators
+    label: 'Events: share of normal demand in event months that is displaced'
+    kind: percent
+    min: 0
+    max: 1
+    step: 0.01
+    value: 0.02
+    status: assumption
+    evidence: Regular visitors and business avoid event dates. Raise it for city-wide mega-events (visible in the Paris 2024 Olympics months).
+  calc.load_factor:
+    group: calculators
+    label: 'Air: seat load factor'
+    kind: percent
+    min: 0.3
+    max: 1
+    step: 0.01
+    value: 0.82
+    status: assumption
+    evidence: Typical European short-haul load factor.
+  calc.visitor_share:
+    group: calculators
+    label: 'Air: share of arriving passengers who are visitors'
+    kind: percent
+    min: 0
+    max: 1
+    step: 0.05
+    value: 0.5
+    status: assumption
+    evidence: Half residents returning
+    half visitors: null
+    unless the airport reports otherwise.: null
+  calc.visit_nights:
+    group: calculators
+    label: 'Air: nights per visitor'
+    kind: number
+    min: 0.5
+    max: 14
+    step: 0.5
+    value: 3.0
+    status: assumption
+    evidence: City-break average.
+  calc.price_elasticity:
+    group: calculators
+    label: Hotel demand price elasticity
+    kind: number
+    min: -3
+    max: 0
+    step: 0.05
+    value: -0.6
+    status: assumption
+    evidence: Mid-range of published hotel demand elasticities.
+  shocks.annual_probability:
+    group: shocks
+    label: Annual chance of a downturn year
+    kind: percent
+    min: 0
+    max: 0.5
+    step: 0.005
+    value: 0.1421
+    status: fitted
+    evidence: 'European panel, CoStar snapshot 2026-09: 714 of 5023 submarket-years outside COVID had RevPAR growth more than
+      10 points below the submarket''s median (mostly 2009, 2008, 2003, 2012).'
+    fitted_on: '2026-11-09'
+  shocks.adr_impact:
+    group: shocks
+    label: ADR change in a downturn year
+    kind: points
+    min: -0.5
+    max: 0
+    step: 0.005
+    value: -0.103
+    status: fitted
+    evidence: 'European panel, CoStar snapshot 2026-09: average ADR growth in those years relative to the submarket''s median.'
+    fitted_on: '2026-11-09'
+  shocks.occ_impact:
+    group: shocks
+    label: Occupancy change in a downturn year
+    kind: points
+    min: -0.5
+    max: 0.1
+    step: 0.005
+    value: -0.0771
+    status: fitted
+    evidence: 'European panel, CoStar snapshot 2026-09: average occupancy growth in those years relative to the submarket''s
+      median.'
+    fitted_on: '2026-11-09'
+  shocks.recovery_next_year:
+    group: shocks
+    label: Share of a downturn regained the following year
+    kind: percent
+    min: 0
+    max: 1
+    step: 0.05
+    value: 0.0
+    status: fitted
+    evidence: 'European panel, CoStar snapshot 2026-09: share of the RevPAR fall regained, on average, in the following year.'
+    fitted_on: '2026-11-09'
+  ranges.spread_multiplier:
+    group: ranges
+    label: Range width (multiplier)
+    kind: number
+    min: 0.25
+    max: 3
+    step: 0.05
+    value: 1.0
+    status: default
+    evidence: 1.0 reproduces the historical miss of the CAGR rule.
+  ranges.stub_error_occ:
+    group: ranges
+    label: 'Current year: occupancy error for the months still to come (annual-equivalent)'
+    kind: percent
+    min: 0
+    max: 0.3
+    step: 0.005
+    value: 0.04
+    status: assumption
+    evidence: Scaled by the share of the year still to come.
+  ranges.stub_error_adr:
+    group: ranges
+    label: 'Current year: ADR error for the months still to come (annual-equivalent)'
+    kind: percent
+    min: 0
+    max: 0.3
+    step: 0.005
+    value: 0.05
+    status: assumption
+    evidence: Scaled by the share of the year still to come.
+ranges:
+  source: 'European panel, CoStar snapshot 2026-09: errors of the long-run CAGR rule at 4048 rolling origins (14953 forecast
+    years, COVID years excluded).'
+  quantile_levels:
+  - 5
+  - 10
+  - 25
+  - 50
+  - 75
+  - 90
+  - 95
+  horizons:
+    1:
+      occ:
+      - -0.08093937083903145
+      - -0.054450179935533013
+      - -0.01867680853402713
+      - 0.00985226257778576
+      - 0.04150651063192508
+      - 0.07773673854574083
+      - 0.10268614522725587
+      adr:
+      - -0.118376331745162
+      - -0.0789108274925971
+      - -0.03437244642651164
+      - 0.005696975065990142
+      - 0.04281844243591315
+      - 0.0825455256541218
+      - 0.11209969470973451
+      occ_flat:
+      - -0.079947372925084
+      - -0.050387943868487745
+      - -0.015286792096170121
+      - 0.013208406166985431
+      - 0.03952327198640737
+      - 0.0714385592234822
+      - 0.09064324119723485
+      adr_flat:
+      - -0.11535954087708947
+      - -0.07841483936836033
+      - -0.03461189127236233
+      - 0.003118301882933139
+      - 0.04341489996447692
+      - 0.08256666700970634
+      - 0.11373605895306063
+    2:
+      occ:
+      - -0.07827549647299971
+      - -0.05059126011410711
+      - -0.016758401803813196
+      - 0.011396868549393722
+      - 0.04343608929584326
+      - 0.07994185371224728
+      - 0.1057260969366129
+      adr:
+      - -0.12145421001971606
+      - -0.08011478069717332
+      - -0.03424810330728194
+      - 0.007043369266098122
+      - 0.04473264800008849
+      - 0.08549711409380187
+      - 0.11629409386062636
+      occ_flat:
+      - -0.07822957000135289
+      - -0.04735531831517191
+      - -0.013583713500537886
+      - 0.014083923834099732
+      - 0.039902701240332294
+      - 0.07155069291202858
+      - 0.09079778016693593
+      adr_flat:
+      - -0.12072196527740114
+      - -0.08092995552491528
+      - -0.035056054002659764
+      - 0.0068911553112937915
+      - 0.04676230935280801
+      - 0.08696949210508689
+      - 0.11919071232960766
+    3:
+      occ:
+      - -0.07790154106848096
+      - -0.04857240021942137
+      - -0.014563753540443855
+      - 0.013574493574228205
+      - 0.04600704862517192
+      - 0.07991921915143853
+      - 0.10558127250663855
+      adr:
+      - -0.12096002844215775
+      - -0.08130914115270418
+      - -0.03248669646739423
+      - 0.00864093744783188
+      - 0.04772780695852321
+      - 0.08931063977757701
+      - 0.1201914994710477
+      occ_flat:
+      - -0.07937769394062111
+      - -0.047337777743545834
+      - -0.013805962855664114
+      - 0.014474770264716635
+      - 0.041205081134715604
+      - 0.0734061444135816
+      - 0.09233272249756327
+      adr_flat:
+      - -0.11919238342447867
+      - -0.07942238909704119
+      - -0.03350548151809128
+      - 0.009463406545425821
+      - 0.05138482530347005
+      - 0.09164830193728558
+      - 0.12647481837585264
+    4:
+      occ:
+      - -0.07386545123248095
+      - -0.043847713508924406
+      - -0.01136511267689969
+      - 0.017476522373060004
+      - 0.05247629243444303
+      - 0.09076707957362043
+      - 0.11842706787008185
+      adr:
+      - -0.11815259936085099
+      - -0.0763820439681109
+      - -0.028959487551530966
+      - 0.013778044541996794
+      - 0.054984123595184634
+      - 0.09710843022289438
+      - 0.12615999099309416
+      occ_flat:
+      - -0.074381907541163
+      - -0.042790162353701325
+      - -0.010170211732498213
+      - 0.01775351110636869
+      - 0.04810591630877939
+      - 0.0863353314079548
+      - 0.11226646390891044
+      adr_flat:
+      - -0.11215911336991234
+      - -0.07654952877807768
+      - -0.028098151160996142
+      - 0.014295306965234088
+      - 0.05791559739953824
+      - 0.10117863587202322
+      - 0.13288615077648416
+    5:
+      occ:
+      - -0.06498996186832878
+      - -0.03997197383512405
+      - -0.011574817026604567
+      - 0.017291790920324075
+      - 0.051114795800942886
+      - 0.09118420646481017
+      - 0.11537886412150897
+      adr:
+      - -0.10910630531017665
+      - -0.07295391313008076
+      - -0.02691302798157881
+      - 0.015244545443990372
+      - 0.05504886068559546
+      - 0.09697790545835797
+      - 0.12177986056842069
+      occ_flat:
+      - -0.06279228895097487
+      - -0.03859489289704343
+      - -0.009463847358209515
+      - 0.017380743460907844
+      - 0.04698827483632601
+      - 0.08483124208311899
+      - 0.10901586911344102
+      adr_flat:
+      - -0.10639060974982469
+      - -0.07442177526329588
+      - -0.026856920111667355
+      - 0.01591994534563122
+      - 0.056497417855452745
+      - 0.10174937055337238
+      - 0.12970784785693337
+  corr_occ_adr: 0.22755258496489647
+  corr_occ_adr_flat: 0.25400568311059707
+  autocorr: 0.08919591869059618
+  panel_median_sd:
+    occ: 0.04331049137191616
+    adr: 0.053290010098449386
+evidence:
+  supply_response:
+    revpar_same_year: -0.5400792268981247
+    revpar_next_year: -0.22908983332965147
+    demand_same_year: 0.5437283585407462
+    source: 'European panel, CoStar snapshot 2026-09: 295 submarkets, 4672 submarket-years (1998 to 2025, COVID years excluded);
+      two-way fixed effects, standard errors clustered by submarket'
+  cagr_rule_backtest:
+    five_year_revpar_cagr_mae: 0.04908290142678636
+    bias: 0.01864714147096289
+    mae_zero_growth: 0.04108477592787167
+    mae_with_supply_adjustment: 0.047251166378791946
+    n: 2123
+    source: 'European panel, CoStar snapshot 2026-09: whole-history CAGR at each origin against the next five years'' RevPAR
+      CAGR.'

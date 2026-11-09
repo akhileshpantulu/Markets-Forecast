@@ -73,6 +73,8 @@ def build_effects(cards: list[DriverCard], years: list[int], n_paths: int, seed:
     eff = DriverEffects(np.zeros((n_paths, n_y)), np.zeros((n_paths, n_y)), np.zeros((n_paths, n_y)),
                         np.ones((n_paths, n_y - 1)))
     for c in cards:
+        if c.magnitude is None:          # calculator cards are sized by the ledger engine
+            continue
         p = (prob_override or {}).get(c.id)
         if p is None:
             p = resolve_probability(c, ladder)

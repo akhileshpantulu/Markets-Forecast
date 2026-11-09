@@ -45,6 +45,9 @@ def check_card(c: DriverCard, years: list[int], driver_priors: dict) -> list[dic
     p = resolve_probability(c, ladder)
     if p is None:
         add("error", "No probability and no event_status to derive one from.")
+    if c.magnitude is None:
+        add("info", f"Sized by the {c.calculator.type} calculator when the forecast runs on the market's data.")
+        return out
     if c.affects == "supply" and c.magnitude.unit != "rooms":
         add("error", "Supply drivers must state their size in rooms.")
     if c.affects == "shock_probability" and c.magnitude.unit != "multiplier":

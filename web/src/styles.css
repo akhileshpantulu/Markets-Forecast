@@ -211,3 +211,9 @@ footer.foot { font-size: 12px; color: var(--faint); margin-top: 28px; }
 .year-story .year-head { font-size: 14px; margin-bottom: 2px; }
 .year-story ul { margin: 4px 0; padding-left: 18px; }
 .year-story li { margin: 3px 0; }
+
+details.group { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; margin: 10px 0; background: var(--surface); }
+details.group > summary { color: var(--text); font-size: 13px; }
+details.group .table-wrap { margin-top: 8px; }
+.year-story h3.year-head { font-size: 14px; margin: 18px 0 6px; }
+.year-story details { margin: 6px 0 4px; }

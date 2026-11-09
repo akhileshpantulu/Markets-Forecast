@@ -22,9 +22,11 @@ from engine.ingest.core import IngestResult, InputFile, ingest_files
 from engine.ingest.mapping import load_mappings
 from engine.ingest.reader import read_table
 from engine.ingest.report import render_validation
-from engine.forecast import load_driver_priors, load_inputs, run_forecast
+from engine.forecast import load_driver_priors, load_inputs
+from engine.ledger import registry as ledger_registry
+from engine.ledger.report import render as render_ledger
+from engine.ledger.run import run_ledger
 from engine.settings import settings_schema
-from engine.outputs.markdown import render_backtest, render_baseline, render_history
 
 # Upload slots on the page. Slots marked enabled=False are shown but not yet accepted.
 SLOTS = [
@@ -32,12 +34,8 @@ SLOTS = [
      "required": True, "enabled": True},
     {"id": "pipeline", "label": "Pipeline", "hint": "CoStar property export of pipeline hotels",
      "required": True, "enabled": True},
-    {"id": "drivers", "label": "Drivers", "hint": "drivers.yaml from a forecast run, or your own cards (YAML or JSON)",
+    {"id": "drivers", "label": "Drivers", "hint": "drivers.yaml from /forecast, or your own cards (YAML or JSON)",
      "required": False, "enabled": True, "accept": ".yaml,.yml,.json"},
-    {"id": "airport", "label": "Airline and airport data", "hint": "Format to be added once an example is provided",
-     "required": False, "enabled": False},
-    {"id": "reference", "label": "Country performance", "hint": "Format to be confirmed once an example is provided",
-     "required": False, "enabled": False},
 ]
 
 
@@ -134,21 +132,10 @@ def result_to_dict(res: IngestResult, cfg: MarketConfig, today: date) -> dict:
         "fatal": res.fatal,
         "files": [{"category": f.category, "filename": f.filename, "mapping": f.mapping, "sheet": f.sheet,
                    "rows": f.rows, "snapshot_date": f.snapshot_date.isoformat() if f.snapshot_date else None,
-                   "mapped": [list(m) for m in f.mapped], "ignored": f.ignored,
-                   "duplicate_headers": f.duplicate_headers, "note": f.note} for f in res.files],
+                   "note": f.note} for f in res.files],
         "checks": {g: [{"id": c.id, "level": c.level, "status": c.status, "title": c.title, "message": c.message,
                         "details": c.details} for c in cs] for g, cs in res.checks.items()},
-        "annual": _records(res.annual, ["year", "months_observed", "complete", "supply", "demand", "occupancy", "adr",
-                                        "revpar", "revenue"]) if res.annual is not None else [],
-        "monthly": _records(monthly.assign(period=monthly["period_start"].dt.strftime("%Y-%m")),
-                            ["period", "supply", "demand", "occupancy", "adr", "revpar", "inventory_rooms",
-                             "available_rooms"]) if not monthly.empty else [],
-        "pipeline": _records(res.pipeline, ["project_id", "name", "rooms", "stage", "project_type", "projected_open",
-                                            "projected_open_basis", "chain_scale", "brand", "operation_status"])
-        if res.pipeline is not None else [],
         "breaks": [b.to_dict() | {"description": b.describe()} for b in res.breaks],
-        "growth_sample": _records(res.growth_sample) if res.growth_sample is not None else [],
-        "influence": {m: {"flagged": inf.flagged, "years": inf.flagged_years()} for m, inf in res.influence.items()},
         "validation_md": render_validation(res, cfg, today),
     }
     return out
@@ -172,21 +159,34 @@ def parse_drivers_file(data, filename: str) -> list[dict]:
 def _forecast(paths: int | None) -> dict:
     st = _STATE
     cfg = st["cfg"]
-    priors, ppri, macro = load_inputs(cfg)
+    _, ppri, macro = load_inputs(cfg)
     drivers = list(st.get("drivers_file") or []) + list(st.get("drivers_extra") or [])
     try:
-        fc = run_forecast(st["res"], cfg, priors, ppri, macro, n_paths=paths, drivers=drivers,
-                          settings=st.get("settings"), cache=st.setdefault("cache", {}))
-        fc["reports"] = {"history_md": render_history(fc, cfg), "backtest_md": render_backtest(fc),
-                         "baseline_md": render_baseline(fc, cfg)}
+        fc = run_ledger(st["res"], cfg, ppri, macro, drivers=drivers, settings=st.get("settings"), n_paths=paths or 4000)
+        fc["report_md"] = render_ledger(fc, cfg.name)
         return {"forecast": fc}
     except Exception as exc:  # report, do not hide, a forecast failure
         return {"forecast_error": f"{type(exc).__name__}: {exc}"}
 
 
+LEGACY_FIELDS = {"pipeline": None, "inflation": None, "drivers": None,
+                 "supply": {"supply.removal_rate", "supply.unannounced_enabled", "supply.unannounced_rate"}}
+
+
 def _schema(cfg: MarketConfig, years: list[int] | None) -> list[dict]:
+    """Assumptions tab: the calibration registry, plus pipeline, supply-floor, inflation and driver settings."""
     _, ppri, macro = load_inputs(cfg)
-    return settings_schema(ppri, macro, load_driver_priors(), years)
+    out = ledger_registry.schema()
+    for g in settings_schema(ppri, macro, load_driver_priors(), years):
+        if g["id"] not in LEGACY_FIELDS:
+            continue
+        keep = LEGACY_FIELDS[g["id"]]
+        fields = [dict(f, status="user_decision" if g["id"] == "pipeline" else f.get("status", "default"), evidence="")
+                  for f in g["fields"] if keep is None or f["key"] in keep]
+        if g["id"] == "supply":
+            g = {**g, "title": "Supply floor and closures", "help": "Hotel stock never grows below its long-run trend; closures each year."}
+        out.insert(1 if g["id"] == "pipeline" else len(out), {**g, "fields": fields})
+    return out
 
 
 def run_ingest(files: list[dict], market: dict, today: str | None = None, forecast: bool = True,

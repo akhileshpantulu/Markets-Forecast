@@ -19,8 +19,7 @@ ADHOC = {"adhoc": {"name": "Synthetown, Old Quarter", "currency": "XXX", "costar
 
 def test_app_info_lists_slots_and_markets():
     info = json.loads(app_info())
-    assert [s["id"] for s in info["slots"]] == ["performance", "pipeline", "drivers", "airport", "reference"]
-    assert [s["enabled"] for s in info["slots"]] == [True, True, True, False, False]
+    assert [s["id"] for s in info["slots"]] == ["performance", "pipeline", "drivers"]
     assert any(m["slug"] == "paris-louvre-marais" for m in info["markets"])
 
 
@@ -28,19 +27,19 @@ def test_run_ingest_roundtrip(perf_bytes, pipe_bytes):
     out = json.loads(run_ingest(_files(perf_bytes, pipe_bytes), ADHOC, today="2026-07-20", paths=2000))
     assert out["meta"]["passed"] is True
     assert out["meta"]["last_month"] == "2026-06" and out["meta"]["stub_actual_months"] == 6
-    assert len(out["monthly"]) == 258 and out["monthly"][0]["period"] == "2005-01"
-    assert {r["year"] for r in out["annual"]} == set(range(2005, 2027))
-    assert len(out["pipeline"]) == 7
     assert {c["id"] for c in out["checks"]["performance"]} >= {"P07", "P18"}
     assert out["breaks"] == []
     assert "Status: **PASSED**" in out["validation_md"]
+    assert "forecast_error" not in out, out.get("forecast_error")
     fc = out["forecast"]
-    assert [r["year"] for r in fc["summary"]] == list(range(2026, 2032))
-    assert "Baseline forecast" in fc["reports"]["baseline_md"] and "forecast_error" not in out
+    assert [y["year"] for y in fc["years"]] == list(range(2026, 2032))
+    assert fc["meta"]["engine"] == "ledger" and "# Forecast:" in fc["report_md"]
+    assert {h["year"] for h in fc["history"]} == set(range(2005, 2027))
+    assert len(fc["supply"]["projects"]) >= 1
 
 
 def test_disabled_slots_are_ignored(perf_bytes, pipe_bytes):
-    files = _files(perf_bytes, pipe_bytes) + [{"slot": "airport", "filename": "x.xlsx", "data": b"junk"}]
+    files = _files(perf_bytes, pipe_bytes) + [{"slot": "reference", "filename": "x.xlsx", "data": b"junk"}]
     out = json.loads(run_ingest(files, ADHOC, today="2026-07-20", forecast=False))
     assert out["meta"]["passed"] is True
     assert all(f["filename"] != "x.xlsx" for f in out["files"])
@@ -71,7 +70,8 @@ def test_drivers_file_settings_and_rerun(perf_bytes, pipe_bytes):
     fc = out["forecast"]
     assert fc["drivers"]["applied"][0]["probability"] == 0.8              # from the ladder: announced
     assert any(g["id"] == "pipeline" for g in out["settings_schema"])
-    again = json.loads(rerun({"demand.trend_bias": 0.005}, [], 1500))["forecast"]
+    assert any(g["id"] == "supply" and g["fields"][0]["status"] for g in out["settings_schema"])
+    again = json.loads(rerun({"supply.occ_response": -0.8}, [], 1500))["forecast"]
     assert again["adjustments"] and again["drivers"]["applied"][0]["id"] == "fair"
     none = json.loads(rerun({}, [], 1500, use_file_drivers=False))["forecast"]
     assert none["drivers"]["applied"] == []

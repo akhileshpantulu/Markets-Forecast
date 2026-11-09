@@ -20,6 +20,18 @@ Ask for, or read from the attached brief: the market and submarket, the country,
 - The baseline is the market's long-run growth, which already contains its normal calendar and its usual share of shocks. Only differences from a normal year count. A fair that recurs every year unchanged is not a driver; a fair that moves month, skips a year or doubles in size is.
 - Do not use, copy or quote CoStar forecasts or CoStar data in evidence.
 
+## Divide the work
+
+Split the research into the four streams below and run them at the same time, one sub-agent per stream, if you can start sub-agents or parallel tasks. If you cannot, work through the streams one after another in this order. Either way, finish with the review pass.
+
+1. **Events and place** (card ids start `events-`): `cal.remaining_months`, `cal.recurring`, `cal.rotations`, `cal.mega_future`, `cal.concerts`, `cal.base_effects`, `cal.congress_pipeline`, `place.attractions`, `place.works`, `place.image`.
+2. **Access, source markets, corporate and policy** (card ids start `demand-`): `air.traffic`, `air.routes`, `air.capacity`, `rail.links`, `cruise`, `src.mix`, `src.macro`, `src.fx`, `src.costs`, `src.longhaul`, `corp.employers`, `corp.travel`, `corp.academic`, `pol.taxes`, `pol.entry`, `pol.str`, `pol.overtourism`, `pol.labour`.
+3. **Supply** (card ids start `supply-`): `sup.pipeline_check`, `sup.missing`, `sup.closures`, `sup.reopenings`, `sup.repositioning`, `sup.alternative`, `sup.policy`, `sup.tier_check`.
+4. **Risk** (card ids start `geopolitics-`): `risk.conflict`, `risk.terror`, `risk.unrest`, `risk.politics`, `risk.sanctions`, `risk.health`, `risk.climate`, `risk.systems`, `risk.macro_downturn`.
+5. **Review pass** (after the streams finish, one agent): merge the streams into one file and run the self-check at the end of this brief. Send any thin answer back to its stream once: a nil finding resting on one source or no local-language search, a card for something that recurs every year unchanged, a missing base effect, or two cards counting the same effect.
+
+Give each stream sub-agent this whole brief plus its item list, and ask it to return only its own `drivers` and `coverage` entries. Streams share one browser, so let each use web search and page fetching first and the browser for pages that need it. Only the review pass writes the final file.
+
 ## Checklist (answer every item)
 
 | Id | Area | What to check |
@@ -113,7 +125,7 @@ Save one file named `drivers-<market-slug>.yaml` with two lists, `drivers` and `
 ```yaml
 drivers:
   # An event sized from organiser figures (event calculator)
-  - id: maison-objet-jan-2028
+  - id: events-maison-objet-jan-2028
     title: Maison&Objet moves from January to February in 2028
     category: mice               # air_access supply events macro fx geopolitical policy corporate mice leisure_sentiment regulation infrastructure other
     affects: demand              # demand | adr | supply | shock_probability
@@ -137,7 +149,7 @@ drivers:
     status: proposed
 
   # New routes (air_capacity calculator)
-  - id: new-longhaul-routes-2027
+  - id: demand-new-longhaul-routes-2027
     title: Two new long-haul routes from spring 2027
     category: air_access
     affects: demand
@@ -151,7 +163,7 @@ drivers:
     status: proposed
 
   # A stated size (no calculator), and a risk card
-  - id: tourist-tax-2027
+  - id: demand-tourist-tax-2027
     title: Tourist tax doubles from January 2027
     category: policy
     affects: demand
@@ -163,7 +175,7 @@ drivers:
     baseline_overlap_note: New rate; not in history.
     evidence: [...]
     status: proposed
-  - id: strike-risk-2027
+  - id: geopolitics-strike-risk-2027
     title: Pension reform strikes raise disruption risk in 2027
     category: geopolitical
     affects: shock_probability
@@ -178,7 +190,7 @@ drivers:
 coverage:
   - item: cal.recurring
     status: card                 # card | no_material_effect | not_applicable | could_not_verify
-    cards: [maison-objet-jan-2028]
+    cards: [events-maison-objet-jan-2028]
     finding: One date shift found; all other recurring fairs keep their months.
     sources: [{publisher: Convention bureau, url: "https://...", accessed: "2026-11-10"}]
     searches: ["salons paris 2027 2028 dates", "trade fair calendar paris 2028"]
@@ -190,7 +202,7 @@ coverage:
 ```
 
 Rules for the file:
-- `id`: lowercase words joined by hyphens, unique.
+- `id`: lowercase words joined by hyphens, unique, starting with the stream's prefix (`events-`, `demand-`, `supply-`, `geopolitics-`).
 - `timing.months`: set it whenever the effect falls in specific months; it drives the monthly roll-up and the current year.
 - `already_in_baseline` (none, partial, full) with `baseline_overlap_note` explaining what the long-run trend already holds.
 - Supply cards: `affects: supply`, `magnitude` in rooms, and `tier` (Luxury, Upper Upscale, Upscale, Upper Midscale, Midscale, Economy).

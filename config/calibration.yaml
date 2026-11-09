@@ -42,14 +42,14 @@ params:
     evidence: The user's practice (2026-11-09) holds occupancy flat unless a demand driver moves it.
   baseline.start_year:
     group: baseline
-    label: Long-run CAGR from year (blank for the first clean year)
+    label: Long-run CAGR from year (blank for the earliest year of data)
     kind: year
     min: 1990
     max: 2030
     step: 1
     value: null
     status: default
-    evidence: The window starts after the last confirmed data break and ends at the last complete non-COVID year.
+    evidence: 'User rule (2026-11-10): the window starts at the earliest complete year of data and ends at the last complete non-COVID year. Confirmed data breaks are adjusted so they do not count as growth.'
   baseline.inflation_pass_through:
     group: baseline
     label: ADR points per point of inflation above its historical average

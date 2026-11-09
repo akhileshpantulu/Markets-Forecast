@@ -174,3 +174,10 @@ def test_blank_chain_scale_is_market_average_and_serialisable(res):
     assert row["chain_scale"] is None and row["tier"].startswith("Unknown")
     from engine.web_api import _json_safe
     json.dumps(_json_safe(o), allow_nan=False, default=str)
+
+
+def test_long_run_cagr_starts_at_earliest_year(res, out):
+    first = int(res.annual[res.annual["complete"]]["year"].min())
+    assert out["baseline"]["start"] == first
+    later = run_ledger(res, CFG, PPRI, {}, n_paths=300, settings={"baseline.start_year": first + 3})
+    assert later["baseline"]["start"] == first + 3 and later["adjustments"]

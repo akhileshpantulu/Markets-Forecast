@@ -33,7 +33,7 @@ from engine.drivers.schema import Magnitude
 from engine.drivers.validate import check_cards, parse_cards, resolve_probability
 from engine.forecast import cpi_history, cpi_rate, load_driver_priors
 from engine.history.analysis import analyse_history
-from engine.history.anchor import anchor_window, compute_anchor, first_clean_year
+from engine.history.anchor import compute_anchor
 from engine.ingest.core import IngestResult
 from engine.ledger import calculators as C
 from engine.ledger.registry import TIER_LABEL, TIERS, effective, tier_of
@@ -112,14 +112,21 @@ def run_ledger(res: IngestResult, cfg: MarketConfig, ppri: dict, macro: dict, dr
     gaps: list[str] = []
 
     # ---------------- Layer 1: baseline ----------------
-    clean = first_clean_year(res.breaks)
+    # User rule (2026-11-10): the long-run CAGR always starts at the earliest complete year of data provided
+    # (a start year set on the Assumptions tab overrides it) and ends at the last complete year outside COVID.
+    # Levels are the guarded ones, so a confirmed data break is not counted as growth; the raw figure is reported.
     start = R.get("baseline.start_year")
-    last_full = int(ha["year"].max())
-    win = anchor_window(list(ha["year"]), last_full, covid, None if start in (None, "") else int(start),
-                        None if start in (None, "") else last_full - int(start), clean)
-    anchor = compute_anchor(ha, win[0], win[1], cpi) if win else None
+    yrs_all = sorted(int(y) for y in ha["year"])
+    end_y = max((y for y in yrs_all if y not in covid), default=None)
+    start_y = int(start) if start not in (None, "") else yrs_all[0]
+    start_y = min((y for y in yrs_all if y >= start_y), default=yrs_all[0])
+    anchor = compute_anchor(ha, start_y, end_y, cpi) if end_y is not None and end_y - start_y >= 3 else None
     if anchor is None:
-        raise ValueError("Not enough complete years outside COVID for a long-run CAGR (at least 5 are needed).")
+        raise ValueError("Not enough complete years outside COVID for a long-run CAGR (at least 4 are needed).")
+    raw_a = res.annual[res.annual["complete"]].set_index("year")
+    raw_revpar = ((raw_a.loc[anchor.end, "revpar"] / raw_a.loc[anchor.start, "revpar"]) ** (1 / (anchor.end - anchor.start)) - 1) \
+        if anchor.start in raw_a.index and anchor.end in raw_a.index else None
+    breaks_in = [b for b in res.breaks if b.action == "exclude_growth" and anchor.start <= b.start.year <= anchor.end]
     split = R["baseline.occupancy_split"]
     base_occ_g = 0.0 if split == "flat" else anchor.occupancy
     base_adr_g = (1 + anchor.revpar) / (1 + base_occ_g) - 1
@@ -480,7 +487,10 @@ def run_ledger(res: IngestResult, cfg: MarketConfig, ppri: dict, macro: dict, dr
         else:
             lines.append(_line("baseline", "Baseline", f"Long-run RevPAR CAGR {anchor.start} to {anchor.end}", base_occ_g, base_adr_g,
                                f"RevPAR grew {_pct(anchor.revpar)} a year from {anchor.start} to {anchor.end} (occupancy {_pct(anchor.occupancy)}, "
-                               f"ADR {_pct(anchor.adr)}). "
+                               f"ADR {_pct(anchor.adr)}), from the earliest year of data. "
+                               + (f"Data breaks ({'; '.join(b.describe().split(' (')[0] for b in breaks_in)}) are adjusted so they do not "
+                                  f"count as growth; on the raw figures RevPAR would read {_pct(raw_revpar)} a year. "
+                                  if breaks_in and raw_revpar is not None and abs(raw_revpar - anchor.revpar) >= 0.0005 else "")
                                + ("Occupancy is held flat and rate carries the RevPAR growth." if split == "flat"
                                   else "Occupancy and ADR each grow at their own long-run rate."),
                                "user_decision" if split == "flat" else "fact"))
@@ -653,7 +663,8 @@ def run_ledger(res: IngestResult, cfg: MarketConfig, ppri: dict, macro: dict, dr
                  "seconds": round(time.time() - t0, 2)},
         "baseline": {"start": anchor.start, "end": anchor.end, "revpar": anchor.revpar, "occupancy": anchor.occupancy,
                      "adr": anchor.adr, "supply": anchor.supply, "demand": anchor.demand, "cpi_mean": anchor.cpi_mean,
-                     "split": split, "occ_growth": base_occ_g, "adr_growth": base_adr_g},
+                     "split": split, "occ_growth": base_occ_g, "adr_growth": base_adr_g, "raw_revpar": raw_revpar,
+                     "breaks": [b.describe() for b in breaks_in]},
         "years": out_years,
         "five_year": five,
         "stub": stub_info,

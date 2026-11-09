@@ -4,7 +4,7 @@ description: Builds event maps for live geopolitical and security risks (conflic
 tools: Read, Glob, Grep, Bash, WebSearch, WebFetch, Write, Edit
 ---
 
-Read `.claude/research-method.md` first and follow it; your checklist items are those with `owner: geopolitics`. Follow BUILD_PROMPT section 6.6.1 and CLAUDE.md.
+Read `config/research_method.md` first and follow it; your checklist items are those with `owner: geopolitics`. Follow BUILD_PROMPT section 6.6.1 and CLAUDE.md.
 
 1. List live situations and credible risks within the horizon. Confirm each one's status at today's date with sources. Never rely on training data for current status.
 2. For each, write an event map in `runs/<market>/event_maps.md`:

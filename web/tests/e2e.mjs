@@ -69,6 +69,7 @@ async function exercise(page, url, label) {
   }
   // Assumptions: change a fitted coefficient and a pipeline probability, add an event, rerun.
   await page.getByRole("tab", { name: /Assumptions/ }).click();
+  if (!(await page.getByRole("button", { name: "Download research brief" }).count())) fail(`${label}: no research brief button`);
   await page.fill("#set-supply-occ_response", "-0.9");
   await page.dispatchEvent("#set-supply-occ_response", "change");
   await page.locator("details.group > summary", { hasText: "Pipeline: chance" }).click();

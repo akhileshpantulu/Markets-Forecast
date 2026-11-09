@@ -19,6 +19,14 @@ RevPAR growth equals occupancy growth combined with ADR growth. The P10 to P90 r
 
 Every coefficient is in `config/calibration.yaml` with its status: fitted on data, a labelled assumption, or your decision. You can change it on the page. Fitted values are refreshed from the private European panel with `python -m engine.ledger.calibrate`.
 
+## Running the research in Cowork
+
+1. Run the market on the page, open **Assumptions**, and click **Download research brief**. The brief is written for that market: the months still to cover this year, the 45-item checklist, the method, the pipeline projects to verify, the card format and the calculators.
+2. In Claude Cowork, attach the brief and ask it to follow it. It researches with your browser and saves one file, `drivers-<market>.yaml`.
+3. Drop that file into the **Drivers** slot and run again. The page lists any card it cannot use, shows the research coverage (every checklist item answered or not), and puts each driver into the year-by-year ledger.
+
+You can also install `cowork/hotel-market-research/SKILL.md` as a skill. It is the same brief without the market details, so Cowork asks for them.
+
 ## Getting a drivers document
 
 Drivers come from research agents that run in a Claude Code session, not on the page. In a session on this repository, run:

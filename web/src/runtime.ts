@@ -11,7 +11,7 @@ const engineSrc = import.meta.glob("../../engine/**/*.py", {
   eager: true,
 }) as Record<string, string>;
 const configSrc = import.meta.glob(
-  ["../../config/*.yaml", "../../config/markets/*.yaml", "../../config/macro/**/*.yaml", "../../data/mappings/*.yaml"],
+  ["../../config/*.yaml", "../../config/*.md", "../../config/markets/*.yaml", "../../config/macro/**/*.yaml", "../../data/mappings/*.yaml"],
   { query: "?raw", import: "default", eager: true },
 ) as Record<string, string>;
 

@@ -75,3 +75,29 @@ def test_drivers_file_settings_and_rerun(perf_bytes, pipe_bytes):
     assert again["adjustments"] and again["drivers"]["applied"][0]["id"] == "fair"
     none = json.loads(rerun({}, [], 1500, use_file_drivers=False))["forecast"]
     assert none["drivers"]["applied"] == []
+
+
+def test_research_file_with_coverage_and_brief(perf_bytes, pipe_bytes):
+    import yaml
+    card = {"id": "fair", "title": "Trade fair", "category": "mice", "affects": "demand", "timing": {"start_year": 2028, "months": [3]},
+            "probability": 0.8, "calculator": {"type": "event", "inputs": {"attendees": 50000, "capture_share": 0.1, "months": [3]}},
+            "already_in_baseline": "none", "baseline_overlap_note": "New fair.", "status": "proposed"}
+    cov = [{"item": "cal.recurring", "status": "card", "cards": ["fair"]},
+           {"item": "risk.climate", "status": "no_material_effect", "finding": "Nothing beyond history.",
+            "sources": [{"publisher": "Met office", "url": "https://example.org"}]}]
+    files = _files(perf_bytes, pipe_bytes) + [{"slot": "drivers", "filename": "drivers-x.yaml",
+                                               "data": yaml.safe_dump({"drivers": [card], "coverage": cov}).encode()}]
+    out = json.loads(run_ingest(files, ADHOC, today="2026-07-20", paths=800))
+    fc = out["forecast"]
+    assert fc["drivers"]["applied"][0]["calculator"] == "event"
+    c = fc["coverage"]
+    assert c["answered"] == 2 and c["items"] == 45
+    assert sum(1 for i in c["issues"] if i["level"] == "error") == 43
+    brief = out["research_brief"]
+    assert "Jul, Aug, Sep, Oct, Nov, Dec 2026" in brief and "drivers-synthetown-old-quarter.yaml" in brief
+    assert "| `risk.climate` |" in brief and "—" not in brief
+
+
+def test_cowork_skill_matches_checklist():
+    from engine.drivers.brief import SKILL_PATH, render_brief
+    assert SKILL_PATH.read_text(encoding="utf-8") == render_brief(), "run python -m engine.drivers.brief"

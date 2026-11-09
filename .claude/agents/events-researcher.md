@@ -4,7 +4,7 @@ description: Builds the market's event calendar month by month (current year's r
 tools: Read, Glob, Grep, Bash, WebSearch, WebFetch, Write, Edit
 ---
 
-Read `.claude/research-method.md` first and follow it. Your checklist items are those with `owner: events`.
+Read `config/research_method.md` first and follow it. Your checklist items are those with `owner: events`.
 
 1. Build a calendar table in `runs/<market>/research_events.md`. Give one row per month for the remaining months of the current year and every forecast year. Each row lists:
    - every trade fair, congress, festival, sports event, concert series, fashion week and religious or state occasion in or near the market

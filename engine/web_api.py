@@ -147,13 +147,44 @@ DATA_SLOTS = {"performance", "pipeline", "reference", "optional"}
 
 
 def parse_drivers_file(data, filename: str) -> list[dict]:
+    return parse_research_file(data, filename)[0]
+
+
+def parse_research_file(data, filename: str) -> tuple[list[dict], list[dict] | None]:
+    """A drivers file: a list of cards, or a mapping with 'drivers' and optionally 'coverage' (research output)."""
     raw = _as_bytes(data).decode("utf-8")
     doc = json.loads(raw) if filename.lower().endswith(".json") else yaml.safe_load(raw)
+    coverage = None
     if isinstance(doc, dict):
+        coverage = doc.get("coverage")
         doc = doc.get("drivers", [])
     if not isinstance(doc, list):
         raise ValueError("A drivers file must be a list of driver cards, or a mapping with a 'drivers' list.")
-    return doc
+    return doc, coverage if isinstance(coverage, list) else None
+
+
+def _coverage(cards: list[dict], coverage: list[dict] | None) -> dict | None:
+    if coverage is None:
+        return None
+    from engine.drivers.doc import check_coverage, load_checklist
+    rows, issues = check_coverage(load_checklist(CONFIG_DIR.parent), coverage, {c.get("id") for c in cards})
+    return {"rows": rows, "issues": issues, "answered": sum(1 for r in rows if r["status"] != "missing"),
+            "items": len({r["id"] for r in rows})}
+
+
+def research_brief(cfg: MarketConfig, res: IngestResult) -> str:
+    from engine.drivers.brief import render_brief
+    from engine.ledger.registry import TIER_LABEL, tier_of
+    last = res.monthly["period_start"].max()
+    projects = []
+    if res.pipeline is not None:
+        for r in res.pipeline.itertuples():
+            if r.stage in ("under_construction", "under_renovation", "final_planning", "planning", "proposed", "deferred") and r.rooms >= 50:
+                projects.append({"name": r.name, "rooms": float(r.rooms), "stage": r.stage,
+                                 "tier": TIER_LABEL.get(tier_of(getattr(r, "chain_scale", None)), "")})
+    return render_brief({"name": cfg.name, "slug": cfg.slug, "costar_market": cfg.costar_market, "costar_submarket": cfg.costar_submarket,
+                         "country": cfg.country, "currency": cfg.currency, "last_actual_month": last.strftime("%Y-%m"),
+                         "horizon": cfg.horizon_years}, projects)
 
 
 def _forecast(paths: int | None) -> dict:
@@ -164,6 +195,7 @@ def _forecast(paths: int | None) -> dict:
     try:
         fc = run_ledger(st["res"], cfg, ppri, macro, drivers=drivers, settings=st.get("settings"), n_paths=paths or 4000)
         fc["report_md"] = render_ledger(fc, cfg.name)
+        fc["coverage"] = _coverage(list(st.get("drivers_file") or []), st.get("coverage"))
         return {"forecast": fc}
     except Exception as exc:  # report, do not hide, a forecast failure
         return {"forecast_error": f"{type(exc).__name__}: {exc}"}
@@ -202,15 +234,15 @@ def run_ingest(files: list[dict], market: dict, today: str | None = None, foreca
     cfg = resolve_config(market)
     res = ingest_files(inputs, cfg, load_mappings(), today=day)
     out = result_to_dict(res, cfg, day)
-    drivers_file, drivers_error = [], None
+    drivers_file, drivers_error, coverage = [], None, None
     for f in files:
         if f["slot"] == "drivers":
             try:
-                drivers_file = parse_drivers_file(f["data"], f["filename"])
+                drivers_file, coverage = parse_research_file(f["data"], f["filename"])
             except Exception as exc:
                 drivers_error = f"{f['filename']}: {exc}"
     _STATE.clear()
-    _STATE.update({"res": res, "cfg": cfg, "drivers_file": drivers_file, "drivers_extra": drivers or [],
+    _STATE.update({"res": res, "cfg": cfg, "drivers_file": drivers_file, "drivers_extra": drivers or [], "coverage": coverage,
                    "settings": settings or {}, "cache": {}})
     if drivers_error:
         out["drivers_error"] = drivers_error
@@ -218,6 +250,10 @@ def run_ingest(files: list[dict], market: dict, today: str | None = None, foreca
         out.update(_forecast(paths))
         y0 = int(res.monthly["period_start"].max().year)
         out["settings_schema"] = _schema(cfg, [y0 + i for i in range(1, cfg.horizon_years + 1)])
+        try:
+            out["research_brief"] = research_brief(cfg, res)
+        except Exception as exc:  # the brief is a convenience; never block the forecast
+            out["research_brief_error"] = f"{type(exc).__name__}: {exc}"
     return json.dumps(out, allow_nan=False)
 
 

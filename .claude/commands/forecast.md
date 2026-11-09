@@ -19,7 +19,7 @@ Produce the drivers document for market `$ARGUMENTS`. Follow CLAUDE.md throughou
 
 ## 1. Research, in parallel
 
-Run the `events-researcher`, `demand-researcher`, `supply-analyst` and `geopolitics-analyst` agents at the same time. Each follows `.claude/research-method.md`, answers every item it owns in `config/research_checklist.yaml` (44 items), and writes `runs/$ARGUMENTS/coverage_<owner>.yaml` alongside its cards. Tell each the last actual month, so the current year's remaining months are covered against the same months last year. Pass each the market slug and the path to `results.json` if there is one. Each writes its own file with status `proposed`:
+Run the `events-researcher`, `demand-researcher`, `supply-analyst` and `geopolitics-analyst` agents at the same time. Each follows `config/research_method.md`, answers every item it owns in `config/research_checklist.yaml` (45 items), and writes `runs/$ARGUMENTS/coverage_<owner>.yaml` alongside its cards. Tell each the last actual month, so the current year's remaining months are covered against the same months last year. Pass each the market slug and the path to `results.json` if there is one. Each writes its own file with status `proposed`:
 
 - `runs/$ARGUMENTS/drivers_events.yaml` (plus the month-by-month calendar in `research_events.md`)
 - `runs/$ARGUMENTS/drivers_supply.yaml`

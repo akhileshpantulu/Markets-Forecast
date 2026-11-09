@@ -28,6 +28,8 @@ interface Forecast {
   adjustments: string[]; gaps: string[];
   history: { year: number; occupancy: number; adr: number; revpar: number; complete: boolean }[];
   report_md: string;
+  coverage?: { rows: { id: string; owner: string; title: string; status: string; cards: string[]; finding: string; sources?: { publisher?: string; url?: string }[] }[];
+    issues: { id: string; level: string; text: string }[]; answered: number; items: number } | null;
 }
 interface Result {
   meta: { run_id: string; engine_version: string; market: string; slug: string; currency: string; passed: boolean; date: string;
@@ -41,6 +43,7 @@ interface Result {
   forecast_error?: string;
   drivers_error?: string;
   settings_schema?: SettingGroup[];
+  research_brief?: string;
 }
 interface SettingField { key: string; label: string; kind: string; min?: number; max?: number; step?: number; default: number | boolean | string | null;
   options?: [string, string][]; status?: string; evidence?: string }
@@ -410,7 +413,7 @@ function assumptionsView(p: HTMLElement, r: Result) {
       h("button", { class: "btn", type: "button", onclick: () => download(`settings-${r.meta.slug}.json`, JSON.stringify({ settings: state.settings, driverEdits: state.driverEdits }, null, 2), "application/json") }, "Download settings"),
       h("button", { class: "btn", type: "button", onclick: () => download(`drivers-${r.meta.slug}.json`, JSON.stringify({ drivers: editedCards([...state.fileCards, ...state.customDrivers]) }, null, 2), "application/json") }, "Download drivers"),
       h("span", { class: "msg small muted" }, n ? `${n} change${n > 1 ? "s" : ""} from the defaults. Rerun to apply.` : "All values at their defaults.")));
-  driversEditor(p, f);
+  driversEditor(p, f, r);
   for (const g of r.settings_schema ?? []) {
     p.append(h("details", { class: "group", open: g.id === "baseline" || g.id === "supply" },
       h("summary", {}, h("b", {}, g.title), h("span", { class: "muted small" }, `  ${g.help}`)),
@@ -422,7 +425,35 @@ function assumptionsView(p: HTMLElement, r: Result) {
   }
 }
 
-function driversEditor(p: HTMLElement, f: Forecast) {
+const COVERAGE_TEXT: Record<string, [string, string]> = {
+  card: ["pass", "driver card"], no_material_effect: ["info", "checked, nothing material"], not_applicable: ["info", "not applicable"],
+  could_not_verify: ["warn", "could not verify"], missing: ["fail", "not researched"],
+};
+
+function researchView(p: HTMLElement, f: Forecast, r: Result) {
+  p.append(h("h2", {}, "Research"),
+    h("p", { class: "note" }, "Run the driver research in Cowork (or with /forecast): download the brief for this market, give it to Cowork, then drop the file it saves into the Drivers slot and run again. The brief holds the 45-item checklist, the method, the card format and the calculators."),
+    h("div", { class: "downloads" },
+      r.research_brief ? h("button", { class: "btn", type: "button", onclick: () => download(`research-brief-${r.meta.slug}.md`, r.research_brief!, "text/markdown") }, "Download research brief") : ""));
+  const cov = f.coverage;
+  if (!cov) {
+    p.append(h("p", { class: "small muted" }, state.fileCards.length ? "The drivers file has no coverage section, so research completeness cannot be checked." : "No research loaded yet."));
+    return;
+  }
+  const errs = cov.issues.filter((i) => i.level === "error");
+  p.append(h("p", {}, `${cov.answered} of ${cov.items} checklist items answered. `,
+      errs.length ? badge("fail", `${errs.length} problem${errs.length > 1 ? "s" : ""}`) : badge("pass", "complete")),
+    h("details", { class: "group", open: errs.length > 0 }, h("summary", {}, h("b", {}, "Research coverage")),
+      table(["Item", "Area", "Answer", "Cards", "Finding"], cov.rows.map((x) => {
+        const [c, t] = COVERAGE_TEXT[x.status] ?? ["info", x.status];
+        const src = (x.sources ?? []).slice(0, 3).map((s) => s.url ? h("a", { href: s.url, target: "_blank", rel: "noopener" }, s.publisher ?? "source") : "");
+        return [x.title, x.owner, badge(c, t), x.cards.join(", "), h("span", { class: "small" }, x.finding ?? "", src.length ? " Sources: " : "", ...src.flatMap((a, i) => i ? [", ", a] : [a]))];
+      })),
+      errs.length ? h("ul", { class: "details" }, errs.map((i) => h("li", {}, i.text))) : ""));
+}
+
+function driversEditor(p: HTMLElement, f: Forecast, r: Result) {
+  researchView(p, f, r);
   const issues = f.drivers.issues ?? [];
   const ladder = f.drivers.ladder ?? {};
   const applied = new Map(f.drivers.applied.map((a) => [a.id, a]));

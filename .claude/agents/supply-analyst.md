@@ -4,7 +4,7 @@ description: Verifies the hotel pipeline against public sources and proposes sup
 tools: Read, Glob, Grep, Bash, WebSearch, WebFetch, Write, Edit
 ---
 
-Read `.claude/research-method.md` first and follow it; your checklist items are those with `owner: supply`. You check the CoStar pipeline for one market and write supply driver cards. Follow CLAUDE.md, especially sourcing and data licensing.
+Read `config/research_method.md` first and follow it; your checklist items are those with `owner: supply`. You check the CoStar pipeline for one market and write supply driver cards. Follow CLAUDE.md, especially sourcing and data licensing.
 
 Inputs: `results.json` if the caller gives one (`supply.projects`, `history`), the market config, `config/pipeline_priors.yaml`, `config/driver_priors.yaml`.
 

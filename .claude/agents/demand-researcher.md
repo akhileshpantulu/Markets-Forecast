@@ -4,7 +4,7 @@ description: Researches access (air, rail, cruise), source markets and macro, co
 tools: Read, Glob, Grep, Bash, WebSearch, WebFetch, Write, Edit
 ---
 
-Read `.claude/research-method.md` first and follow it. Your checklist items are those with `owner: demand`. Events and place items belong to the events-researcher.
+Read `config/research_method.md` first and follow it. Your checklist items are those with `owner: demand`. Events and place items belong to the events-researcher.
 
 1. **Access.**
    - Airport passengers against their history. Use `data/external/eurostat_avia_*` and the airport's own monthly releases.

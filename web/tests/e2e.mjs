@@ -63,6 +63,14 @@ async function exercise(page, url, label) {
   const baseLine = await page.getByText("Long-run RevPAR CAGR", { exact: false }).count();
   if (!baseLine) fail(`${label}: no baseline line in the ledger`);
   if (SHOTS) await page.screenshot({ path: join(SHOTS, `${label}-forecast.png`), fullPage: true });
+  // Map tab: projects listed and numbered; export the pipeline in the template format.
+  await page.getByRole("tab", { name: "Map" }).click();
+  const pins = await page.locator(".panel table").first().locator("tbody tr").count();
+  if (pins < 1) fail(`${label}: no pipeline projects on the Map tab`);
+  const [dl] = await Promise.all([page.waitForEvent("download", { timeout: 60_000 }), page.getByRole("button", { name: "Export pipeline (Excel)" }).click()]);
+  const name = dl.suggestedFilename();
+  if (!name.endsWith(".xlsx")) fail(`${label}: pipeline export is not an xlsx (${name})`);
+  if (SHOTS) await page.screenshot({ path: join(SHOTS, `${label}-map.png`), fullPage: true });
   for (const tab of ["Supply", "Data"]) {
     await page.getByRole("tab", { name: tab }).click();
     if (SHOTS) await page.screenshot({ path: join(SHOTS, `${label}-${tab.toLowerCase()}.png`), fullPage: true });

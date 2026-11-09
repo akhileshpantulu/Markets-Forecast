@@ -63,6 +63,7 @@ After you click Run, the page has four tabs:
 
 - **Forecast:** headline table with P10 to P90 ranges, a chart against history, and each year's ledger with its reasons; downloads of forecast.md, ledger.csv and results.json.
 - **Supply:** inventory against its trend, openings, reopenings and closures by year, and each pipeline project's tier, product type and chance of opening.
+- **Map:** the pipeline projects numbered by opening date and pinned on a map, coloured by stage, with supply by year. **Find locations** looks the addresses up on OpenStreetMap (the only time anything leaves your browser); results are remembered. **Export pipeline (Excel)** writes the pipeline in your template: the map, the project table, supply by year with the CAGR, and the raw CoStar columns. The same export button is on the Supply tab.
 - **Assumptions:** every coefficient with its basis and evidence, the pipeline probabilities, the inflation path and the drivers. Change any and rerun.
 - **Data:** validation checks that need attention, the files read, series breaks, and validation.md.
 

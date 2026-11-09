@@ -24,7 +24,8 @@ export type Msg =
   | { type: "run"; id: number; files: { slot: string; filename: string; buf: ArrayBuffer }[]; market: unknown; today: string;
       settings?: unknown; drivers?: unknown }
   | { type: "rerun"; id: number; settings: unknown; drivers: unknown; useFileDrivers: boolean }
-  | { type: "peek"; id: number; filename: string; buf: ArrayBuffer };
+  | { type: "peek"; id: number; filename: string; buf: ArrayBuffer }
+  | { type: "export_pipeline"; id: number; png?: ArrayBuffer | null };
 
 
 function writeTree(p: PyodideInterface, files: Record<string, string>) {
@@ -83,6 +84,9 @@ export function createRuntime(post: (m: unknown) => void): (m: Msg) => Promise<v
         settings.destroy();
         drivers.destroy();
         post({ type: "result", id: m.id, json });
+      } else if (m.type === "export_pipeline") {
+        const b64 = (m.png ? api.export_pipeline(new Uint8Array(m.png)) : api.export_pipeline()) as string;
+        post({ type: "result", id: m.id, json: b64 });
       } else if (m.type === "peek") {
         const json = api.peek_json(new Uint8Array(m.buf), m.filename) as string;
         post({ type: "peek", id: m.id, json });

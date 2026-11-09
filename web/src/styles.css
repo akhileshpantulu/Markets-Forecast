@@ -217,3 +217,10 @@ details.group > summary { color: var(--text); font-size: 13px; }
 details.group .table-wrap { margin-top: 8px; }
 .year-story h3.year-head { font-size: 14px; margin: 18px 0 6px; }
 .year-story details { margin: 6px 0 4px; }
+
+.map-holder { margin: 10px 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface-2); min-height: 80px; }
+.map-holder p { padding: 12px; margin: 0; }
+img.pipeline-map { display: block; width: 100%; height: auto; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 4px 0 12px; color: var(--muted); }
+.legend .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+.pin { display: inline-block; min-width: 22px; height: 22px; line-height: 22px; border-radius: 11px; color: #fff; font-weight: 600; font-size: 12px; text-align: center; }

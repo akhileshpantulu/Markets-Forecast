@@ -93,6 +93,15 @@ export class Engine {
     return JSON.parse(await this.call({ type: "rerun", settings, drivers, useFileDrivers }, []));
   }
 
+  /** The uploaded pipeline in the template format: returns the xlsx bytes. png: the map image with pins. */
+  async exportPipeline(png?: ArrayBuffer | null): Promise<Uint8Array<ArrayBuffer>> {
+    const b64 = await this.call({ type: "export_pipeline", png: png ?? null }, png ? [png] : []);
+    const bin = atob(b64);
+    const out = new Uint8Array(new ArrayBuffer(bin.length));
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
   async peek(file: File): Promise<{ market?: string[]; submarket?: string[]; country?: string[] }> {
     const buf = await file.arrayBuffer();
     return JSON.parse(await this.call({ type: "peek", filename: file.name, buf }, [buf]));

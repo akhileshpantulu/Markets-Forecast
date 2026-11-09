@@ -2,6 +2,7 @@ import "./styles.css";
 import { Engine, PYODIDE_VERSION, type AppInfo, type MarketChoice, type Slot } from "./engine";
 import { disposeCharts, ledgerChart, type Band } from "./charts";
 import { download, h, num, pct, signedPct } from "./format";
+import { applyCached, geocode, renderMap, STAGE_COLOR, type Site } from "./map";
 
 // ---------- result types (engine/web_api.py and engine/ledger/run.py) ----------
 interface Check { id: string; level: string; status: "pass" | "warn" | "fail" | "info"; title: string; message: string; details: string[] }
@@ -44,6 +45,8 @@ interface Result {
   drivers_error?: string;
   settings_schema?: SettingGroup[];
   research_brief?: string;
+  pipeline_map?: { sites: Site[]; current_supply: number | null; as_of: string; country: string };
+  pipeline_map_error?: string;
 }
 interface SettingField { key: string; label: string; kind: string; min?: number; max?: number; step?: number; default: number | boolean | string | null;
   options?: [string, string][]; status?: string; evidence?: string }
@@ -64,6 +67,9 @@ const state = {
   fileCards: [] as any[],
   rerunning: false,
   running: false,
+  map: null as null | { key: string; canvas: HTMLCanvasElement; tiles: number },
+  geocoding: "" as string,
+  exporting: false,
   error: "",
 };
 
@@ -156,7 +162,7 @@ function renderInputs() {
   const canRun = ready && !missing.length && !state.running && (state.market !== "__other" || !!state.other.name);
   const other = state.market === "__other";
   inputsEl.replaceChildren(
-    h("p", { class: "privacy" }, "Files are processed in this browser. Nothing is uploaded or stored on a server."),
+    h("p", { class: "privacy" }, "Files are processed in this browser. Nothing is uploaded or stored on a server, except pipeline addresses sent to OpenStreetMap when you click Find locations on the Map tab."),
     h("div", {}, slots.map(slotView)),
     h("div", { class: "field" },
       h("label", { for: "market" }, "Market"),
@@ -235,7 +241,7 @@ async function rerun() {
 }
 
 // ---------- shared view helpers ----------
-const TABS: [string, string][] = [["forecast", "Forecast"], ["supply", "Supply"], ["assumptions", "Assumptions"], ["data", "Data"]];
+const TABS: [string, string][] = [["forecast", "Forecast"], ["supply", "Supply"], ["map", "Map"], ["assumptions", "Assumptions"], ["data", "Data"]];
 const BASIS: Record<string, [string, string]> = {
   fitted: ["pass", "fitted"], assumption: ["warn", "assumption"], user_decision: ["info", "your decision"], fact: ["info", "fact"],
   default: ["info", "default"], "driver (approved)": ["pass", "driver, approved"], "driver (proposed)": ["warn", "driver, proposed"],
@@ -271,7 +277,7 @@ function renderResults() {
   const nWarn = Object.values(r.checks).flat().filter((c) => c.status === "warn").length;
   const tabs = h("nav", { class: "tabs", role: "tablist", "aria-label": "Result views" },
     TABS.map(([id, label]) => {
-      const enabled = id === "data" || !!f;
+      const enabled = id === "data" || (id === "map" ? !!r.pipeline_map : !!f);
       return h("button", { role: "tab", type: "button", id: `tab-${id}`, "aria-selected": String(state.tab === id), "aria-controls": "panel",
         disabled: !enabled, onclick: () => { state.tab = id; renderResults(); } },
         id === "assumptions" && changedCount() ? `${label} (${changedCount()} changed)` : label);
@@ -293,7 +299,7 @@ function renderResults() {
       h("div", {}, h("span", {}, "Calibration"), f.meta.calibrated_on ? `${f.meta.calibrated_on} (European panel ${f.meta.panel_snapshot})` : "not calibrated")) : "",
     tabs, panel,
     h("footer", { class: "foot" }, `Engine ${r.meta.engine_version}, Pyodide ${PYODIDE_VERSION}. Computed in this browser on ${r.meta.date}.`));
-  ({ forecast: forecastView, supply: supplyView, assumptions: assumptionsView, data: dataView } as Record<string, (p: HTMLElement, r: Result) => void>)[state.tab]?.(panel, r);
+  ({ forecast: forecastView, supply: supplyView, map: mapView, assumptions: assumptionsView, data: dataView } as Record<string, (p: HTMLElement, r: Result) => void>)[state.tab]?.(panel, r);
 }
 
 // ---------- Forecast ----------
@@ -361,9 +367,104 @@ function supplyView(p: HTMLElement, r: Result) {
         num(y.new_builds_rooms), num(y.reopening_rooms), num(y.unannounced_rooms), num(y.removed_rooms), y.adr_mix_index.toFixed(3), pct(y.overlap, 0)])),
     h("p", { class: "note" }, "Rooms are average rooms in the year, expected values across the simulated pipeline outcomes."),
     h("h2", {}, "Pipeline"),
+    exportButton(r),
     table(["Project", ["Rooms", "n"], "Stage", "Tier", "Product", ["Chance of opening", "n"], "Median opening"],
       s.projects.map((x) => [x.name, num(x.rooms), x.stage.replace(/_/g, " "), x.tier, x.product ?? "hotel", pct(x.p_open_horizon, 0), x.median_open ?? ""])),
     s.notes.length ? h("ul", { class: "details" }, s.notes.map((n) => h("li", {}, n))) : "");
+}
+
+// ---------- Map and pipeline export ----------
+const mapKey = (sites: Site[]) => sites.map((x) => `${x.n}:${x.lat ?? ""},${x.lon ?? ""}`).join("|");
+
+async function ensureMap(sites: Site[]) {
+  const key = mapKey(sites);
+  if (state.map?.key === key) return state.map;
+  const { canvas, tiles } = await renderMap(sites);
+  state.map = { key, canvas, tiles };
+  return state.map;
+}
+
+function exportButton(r: Result) {
+  if (!r.pipeline_map) return "";
+  return h("div", { class: "downloads" }, h("button", { class: "btn", type: "button", disabled: state.exporting, onclick: () => exportPipeline(r) },
+    state.exporting ? "Preparing…" : "Export pipeline (Excel)"));
+}
+
+async function exportPipeline(r: Result) {
+  const pm = r.pipeline_map!;
+  state.exporting = true;
+  renderResults();
+  try {
+    const located = pm.sites.filter((x) => x.lat != null && x.lon != null);
+    let png: ArrayBuffer | null = null;
+    if (located.length) {
+      const m = await ensureMap(pm.sites);
+      const blob: Blob | null = await new Promise((ok) => m.canvas.toBlob(ok, "image/png"));
+      png = blob ? await blob.arrayBuffer() : null;
+    }
+    const bytes = await engine.exportPipeline(png);
+    const url = URL.createObjectURL(new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+    const a = h("a", { href: url, download: `pipeline-${r.meta.slug}.xlsx` });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (e) {
+    alert(`The export failed: ${e instanceof Error ? e.message : String(e)}`);
+  } finally {
+    state.exporting = false;
+    renderResults();
+  }
+}
+
+function mapView(p: HTMLElement, r: Result) {
+  const pm = r.pipeline_map!;
+  const sites = pm.sites;
+  applyCached(sites);
+  const located = sites.filter((x) => x.lat != null && x.lon != null).length;
+  const missing = sites.length - located;
+  p.append(
+    h("p", {}, `${sites.length} pipeline project${sites.length === 1 ? "" : "s"}, numbered by CoStar's projected opening date. `,
+      `${located} located on the map${missing ? `, ${missing} not yet` : ""}.`),
+    h("p", { class: "note" }, "Locations come from the export's latitude and longitude when it has them. Otherwise, Find locations sends each project's address to OpenStreetMap's geocoder (one request a second) and keeps the results in this browser. The base map loads from OpenStreetMap and CARTO; no project data goes with it."),
+    h("div", { class: "downloads" },
+      missing ? h("button", { class: "btn primary", type: "button", disabled: !!state.geocoding, onclick: async () => {
+        state.geocoding = `0 of ${missing}`;
+        renderResults();
+        await geocode(sites, (d, t) => { state.geocoding = `${d} of ${t}`; const el = document.getElementById("geo-progress"); if (el) el.textContent = `Finding locations: ${d} of ${t}`; });
+        state.geocoding = "";
+        state.map = null;
+        renderResults();
+      } }, state.geocoding ? "Finding locations…" : `Find locations (${missing})`) : "",
+      h("span", { id: "geo-progress", class: "msg small muted" }, state.geocoding ? `Finding locations: ${state.geocoding}` : ""),
+      exportButton(r)));
+  const holder = h("div", { class: "map-holder" }, located ? h("p", { class: "small muted" }, "Drawing the map…") : h("p", { class: "small muted" }, "No locations yet."));
+  p.append(holder,
+    h("div", { class: "legend small" }, Object.entries(STAGE_COLOR).filter(([k]) => sites.some((x) => x.stage === k)).map(([k, c]) =>
+      h("span", {}, h("span", { class: "swatch", style: `background:${c}` }), sites.find((x) => x.stage === k)!.stage_label))));
+  if (located) {
+    void ensureMap(sites).then((m) => {
+      const img = h("img", { src: m.canvas.toDataURL("image/png"), alt: "Map of pipeline projects", class: "pipeline-map" });
+      holder.replaceChildren(img, m.tiles ? "" : h("p", { class: "small muted" }, "The base map could not be loaded (no connection to the tile server); pins are placed on a blank background."));
+    });
+  }
+  const years = [...new Set(sites.map((x) => x.year).filter((y): y is number => y != null))].sort();
+  let total = pm.current_supply ?? 0;
+  p.append(
+    table(["#", "Name", ["Keys", "n"], "Opening", "Class", "Stage", "Owner", "Operator", "Location"], sites.map((x) => [
+      h("span", { class: "pin", style: `background:${STAGE_COLOR[x.stage] ?? "#7b1e45"}` }, String(x.n)), x.name, num(x.rooms),
+      x.opening ? new Date(x.opening).toLocaleDateString("en-GB", { month: "short", year: "numeric" }) : "", x.class ?? "", x.stage_label,
+      x.owner ?? "", x.operator ?? "", x.lat != null ? `${x.lat.toFixed(4)}, ${x.lon!.toFixed(4)}` : h("span", { class: "muted" }, [x.address, x.city, x.postcode].filter(Boolean).join(", "))])),
+    pm.current_supply ? h("div", {}, h("h2", {}, "Pipeline supply by year"),
+      table(["Year", ["Incoming", "n"], ["Total", "n"], ["%", "n"]], [
+        ["Current supply", "", num(pm.current_supply), `as of ${pm.as_of}`],
+        ...years.map((y) => {
+          const inc = sites.filter((x) => x.year === y).reduce((a, b) => a + b.rooms, 0);
+          const prev = total;
+          total += inc;
+          return [String(y), num(inc), num(total), `${((total / prev - 1) * 100).toFixed(1)}%`];
+        })]),
+      h("p", { class: "note" }, "Every project counted in full in its CoStar opening year, as in the Excel export. The forecast itself weights projects by their chance of opening and typical delays (Supply tab).")) : "");
 }
 
 // ---------- Assumptions ----------

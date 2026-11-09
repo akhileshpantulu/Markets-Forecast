@@ -187,6 +187,41 @@ def _coverage(cards: list[dict], coverage: list[dict] | None) -> dict | None:
             "items": len({r["id"] for r in rows})}
 
 
+MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
+               "November", "December"]
+
+
+def _pipeline_context(cfg: MarketConfig, res: IngestResult, pipe_file: dict | None) -> dict:
+    """Projects for the map tab and the pipeline export, numbered in opening order."""
+    from engine.pipeline_export import sites
+    raw = None
+    if pipe_file:
+        try:
+            raw = read_table(pipe_file["data"], filename=pipe_file["filename"])
+        except Exception:  # the ingest already reported any problem with the file
+            raw = None
+    m = res.monthly.sort_values("period_start")
+    last = m.iloc[-1]
+    inv = last.get("inventory_rooms")
+    return {"sites": sites(res.pipeline, raw, cfg.country), "raw": raw,
+            "current_supply": None if inv is None or pd.isna(inv) else float(inv),
+            "as_of": f"{MONTH_NAMES[last['period_start'].month - 1]} {last['period_start'].year}",
+            "first_year": int(last["period_start"].year)}
+
+
+def export_pipeline(map_png=None) -> str:
+    """The uploaded pipeline in the template format, as base64 xlsx. map_png: PNG bytes of the map with pins."""
+    import base64
+    from engine.pipeline_export import build_workbook
+    if "res" not in _STATE:
+        raise ValueError("Run the market first.")
+    ctx = _STATE["pipeline_ctx"]
+    cfg = _STATE["cfg"]
+    png = _as_bytes(map_png) if map_png is not None and type(map_png).__name__ != "JsNull" else None
+    data = build_workbook(cfg.name, ctx["sites"], ctx["raw"], ctx["current_supply"], ctx["as_of"], ctx["first_year"], png or None)
+    return base64.b64encode(data).decode("ascii")
+
+
 def research_brief(cfg: MarketConfig, res: IngestResult) -> str:
     from engine.drivers.brief import render_brief
     from engine.ledger.registry import TIER_LABEL, tier_of
@@ -257,6 +292,7 @@ def run_ingest(files: list[dict], market: dict, today: str | None = None, foreca
             except Exception as exc:
                 drivers_error = f"{f['filename']}: {exc}"
     _STATE.clear()
+    pipe_file = next(({"data": _as_bytes(f["data"]), "filename": f["filename"]} for f in files if f["slot"] == "pipeline"), None)
     _STATE.update({"res": res, "cfg": cfg, "drivers_file": drivers_file, "drivers_extra": drivers or [], "coverage": coverage,
                    "settings": settings or {}, "cache": {}})
     if drivers_error:
@@ -265,6 +301,13 @@ def run_ingest(files: list[dict], market: dict, today: str | None = None, foreca
         out.update(_forecast(paths))
         y0 = int(res.monthly["period_start"].max().year)
         out["settings_schema"] = _schema(cfg, [y0 + i for i in range(1, cfg.horizon_years + 1)])
+        try:
+            ctx = _pipeline_context(cfg, res, pipe_file)
+            _STATE["pipeline_ctx"] = ctx
+            out["pipeline_map"] = {"sites": ctx["sites"], "current_supply": ctx["current_supply"], "as_of": ctx["as_of"],
+                                   "country": cfg.country}
+        except Exception as exc:  # the map and export are conveniences; never block the forecast
+            out["pipeline_map_error"] = f"{type(exc).__name__}: {exc}"
         try:
             out["research_brief"] = research_brief(cfg, res)
         except Exception as exc:  # the brief is a convenience; never block the forecast

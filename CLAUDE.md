@@ -119,6 +119,13 @@ Each evidence item records `claim, url, publisher, published, accessed`. Primary
 - Settings: `engine/settings.py` covers pipeline chance and delay by stage, removals, induced demand, unannounced supply, demand trend and ADR drift biases, the occupancy pricing rule (change response, level dampening, 90% threshold, downturn pass-through), shock multipliers, inflation path, band width, horizon widening and the ceiling. They are applied after fitting. The backtest is not affected, and is cached across setting changes.
 - CLI: `python -m engine <market> --drivers <yaml> --settings <json>`. Without `--drivers`, the default is `runs/<market>/drivers.yaml` if present.
 
+## Private data panel (akhileshpantulu/marketsdata)
+
+- Licensed CoStar monthly performance for European submarkets lives in the private repo `akhileshpantulu/marketsdata` (snapshot 2026-09: 303 submarkets, 79 markets, 21 countries, performance 1996 to Sep 2026, EUR at constant current rates; no UK; no CoStar forecast figures).
+- In a new session: `add_repo` it, clone to `/home/user/marketsdata`, read `panel/CATALOG.md`. Read it with `engine/panel.py` (`load_panel`, `submarket_monthly(slug)`); `MARKETS_DATA_DIR` overrides the path.
+- The user updates it from the browser: upload an export to `inbox/` on GitHub; the repo's build-panel action archives it in `raw/` and rebuilds `panel/` (newer snapshots win per geography, slice and month).
+- Never copy panel data into this public repo or the web build.
+
 ## External public data
 
 - The user supplied API connectors (Eurostat tourism and air passengers, Eurostat HICP accommodation, IMF WEO GDP and CPI, ECB FX, INE Spain). They are listed verbatim in `config/external_sources.yaml`.

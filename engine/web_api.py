@@ -110,6 +110,21 @@ def _clean(v):
     return v
 
 
+def _json_safe(x):
+    """NaN and infinity become null anywhere in the output, so one blank cell in an export cannot break a run."""
+    if isinstance(x, dict):
+        return {k: _json_safe(v) for k, v in x.items()}
+    if isinstance(x, (list, tuple)):
+        return [_json_safe(v) for v in x]
+    if isinstance(x, (float, np.floating)):
+        return None if math.isnan(x) or math.isinf(x) else float(x)
+    if isinstance(x, (np.integer,)):
+        return int(x)
+    if isinstance(x, (np.bool_,)):
+        return bool(x)
+    return x
+
+
 def _records(df: pd.DataFrame | None, cols: list[str] | None = None) -> list[dict]:
     if df is None:
         return []
@@ -254,7 +269,7 @@ def run_ingest(files: list[dict], market: dict, today: str | None = None, foreca
             out["research_brief"] = research_brief(cfg, res)
         except Exception as exc:  # the brief is a convenience; never block the forecast
             out["research_brief_error"] = f"{type(exc).__name__}: {exc}"
-    return json.dumps(out, allow_nan=False)
+    return json.dumps(_json_safe(out), allow_nan=False)
 
 
 def rerun(settings: dict | None, drivers: list[dict] | None, paths: int | None = None, use_file_drivers: bool = True) -> str:
@@ -265,7 +280,7 @@ def rerun(settings: dict | None, drivers: list[dict] | None, paths: int | None =
     _STATE["drivers_extra"] = drivers or []
     if not use_file_drivers:
         _STATE["drivers_file"] = []
-    return json.dumps(_forecast(paths), allow_nan=False)
+    return json.dumps(_json_safe(_forecast(paths)), allow_nan=False)
 
 
 def app_info() -> str:

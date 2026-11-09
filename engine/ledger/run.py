@@ -323,6 +323,8 @@ def run_ledger(res: IngestResult, cfg: MarketConfig, ppri: dict, macro: dict, dr
         cs = pipe_src.loc[str(r.project_id), "chain_scale"] if pipe_src is not None and str(r.project_id) in pipe_src.index else None
         if isinstance(cs, pd.Series):
             cs = cs.iloc[0]
+        if not isinstance(cs, str) or not cs.strip():
+            cs = None                                   # blank chain scale in the export: treated as the market average
         t = tier_of(cs)
         prod = _product(r.name)
         groups.append((t or avg_tier, prod, rooms_y))

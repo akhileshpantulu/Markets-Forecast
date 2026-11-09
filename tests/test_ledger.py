@@ -163,3 +163,14 @@ def test_current_year_is_ytd_growth_plus_remaining_month_events(res):
     o2 = run_ledger(res, CFG, PPRI, {}, n_paths=500, drivers=[late, gone])
     s2 = o2["years"][0]
     assert s2["occ_growth"] - stub["occ_growth"] == pytest.approx(0.005, abs=1e-9)
+
+
+def test_blank_chain_scale_is_market_average_and_serialisable(res):
+    import json
+    pipe = _pipeline("Economy")
+    pipe.loc[0, "chain_scale"] = np.nan
+    o = run_ledger(res.__class__(**{**res.__dict__, "pipeline": pipe}), CFG, PPRI, {}, n_paths=300)
+    row = next(p for p in o["supply"]["projects"] if p["project_id"] == "p0")
+    assert row["chain_scale"] is None and row["tier"].startswith("Unknown")
+    from engine.web_api import _json_safe
+    json.dumps(_json_safe(o), allow_nan=False, default=str)

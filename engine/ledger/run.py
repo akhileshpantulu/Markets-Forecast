@@ -461,25 +461,20 @@ def run_ledger(res: IngestResult, cfg: MarketConfig, ppri: dict, macro: dict, dr
     for j, y in enumerate(years):
         lines = []
         if stub and y == y0:
+            # User rule (2026-11-09): the current year grows at its year-to-date rate against the same months of
+            # last year; events in the remaining months that differ from last year enter as driver lines below.
             cur = m[m["period_start"].dt.year == y0]
             prev = m[m["period_start"].dt.year == y0 - 1]
-            pytd, prest = prev[prev["period_start"].dt.month <= cutoff], prev[prev["period_start"].dt.month > cutoff]
+            pytd = prev[prev["period_start"].dt.month <= cutoff]
             o_ytd = (cur["demand"].sum() / cur["supply"].sum()) / (pytd["demand"].sum() / pytd["supply"].sum())
             a_ytd = (cur["revenue"].sum() / cur["demand"].sum()) / (pytd["revenue"].sum() / pytd["demand"].sum())
-            sup_rest = float(S[:, j].mean()) - float(cur["supply"].sum())
-            ratio = sup_rest / float(prest["supply"].sum()) if prest["supply"].sum() > 0 else 1.0
-            dem_rest = prest["demand"].to_numpy() * ratio * o_ytd
-            rev_rest = dem_rest * (prest["revenue"] / prest["demand"]).to_numpy() * a_ytd
-            occ_s = (cur["demand"].sum() + dem_rest.sum()) / (cur["supply"].sum() + sup_rest)
-            adr_s = (cur["revenue"].sum() + rev_rest.sum()) / (cur["demand"].sum() + dem_rest.sum())
-            stub_info = {"months_actual": cutoff, "occ_ytd": o_ytd - 1, "adr_ytd": a_ytd - 1,
-                         "revpar_ytd": o_ytd * a_ytd - 1}
-            rest_txt = (f"{MONTHS[cutoff]} to Dec follow last year's same months moved by the year-to-date trend"
-                        if cutoff < 12 else "")
-            lines.append(_line("stub", "Current year", f"Jan to {MONTHS[cutoff - 1]} actual, rest at the year-to-date trend",
-                               occ_s / base["occ"] - 1, adr_s / base["adr"] - 1,
-                               f"{cutoff} months are actual: occupancy {_pct(o_ytd - 1)} and ADR {_pct(a_ytd - 1)} against the same "
-                               f"months of {y0 - 1}. {rest_txt}.", "fact"))
+            stub_info = {"months_actual": cutoff, "occ_ytd": o_ytd - 1, "adr_ytd": a_ytd - 1, "revpar_ytd": o_ytd * a_ytd - 1}
+            lines.append(_line("stub", "Current year", f"Year to date: Jan to {MONTHS[cutoff - 1]} {y0} against Jan to {MONTHS[cutoff - 1]} {y0 - 1}",
+                               o_ytd - 1, a_ytd - 1,
+                               f"Occupancy {_pct(o_ytd - 1)} and ADR {_pct(a_ytd - 1)} (RevPAR {_pct(o_ytd * a_ytd - 1)}) over the {cutoff} actual "
+                               f"months against the same months of {y0 - 1}. The full year is taken to grow at that rate. Events in "
+                               f"{MONTHS[cutoff]} to Dec {y0} that were not there in {y0 - 1}, or were there and do not recur, are separate "
+                               "driver lines below; with none, the year-to-date rate stands.", "fact"))
         else:
             lines.append(_line("baseline", "Baseline", f"Long-run RevPAR CAGR {anchor.start} to {anchor.end}", base_occ_g, base_adr_g,
                                f"RevPAR grew {_pct(anchor.revpar)} a year from {anchor.start} to {anchor.end} (occupancy {_pct(anchor.occupancy)}, "

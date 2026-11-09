@@ -39,8 +39,52 @@ def _size(c: DriverCard) -> str:
     return f"{m.low:+g}% to {m.high:+g}% of the year's level, most likely {m.mode:+g}%"
 
 
+STATUSES = {"card", "no_material_effect", "not_applicable", "could_not_verify"}
+STATUS_TEXT = {"card": "driver card(s)", "no_material_effect": "checked, no material effect", "not_applicable": "not applicable",
+               "could_not_verify": "could not verify", "missing": "NOT RESEARCHED"}
+
+
+def load_checklist(root: Path = REPO_ROOT) -> list[dict]:
+    p = root / "config" / "research_checklist.yaml"
+    return (yaml.safe_load(p.read_text(encoding="utf-8")) or {}).get("items", []) if p.exists() else []
+
+
+def check_coverage(checklist: list[dict], entries: list[dict], card_ids: set[str]) -> tuple[list[dict], list[dict]]:
+    """One row per checklist item with its answer, and issues: unanswered items are errors."""
+    by = {}
+    for e in entries:
+        by.setdefault(e.get("item"), []).append(e)
+    rows, issues = [], []
+    known = {i["id"] for i in checklist}
+    for e in entries:
+        if e.get("item") not in known:
+            issues.append({"id": f"coverage:{e.get('item')}", "level": "warn", "text": "Coverage entry for an item not in the checklist."})
+    for it in checklist:
+        es = by.get(it["id"], [])
+        if not es:
+            rows.append({**it, "status": "missing", "cards": [], "finding": ""})
+            issues.append({"id": f"coverage:{it['id']}", "level": "error", "text": f"Not researched: {it['title']}"})
+            continue
+        for e in es:
+            st = e.get("status")
+            cards = list(e.get("cards") or [])
+            if st not in STATUSES:
+                issues.append({"id": f"coverage:{it['id']}", "level": "error", "text": f"Unknown status {st!r}."})
+            if st == "card" and not cards:
+                issues.append({"id": f"coverage:{it['id']}", "level": "error", "text": "Status is card but no card ids are given."})
+            for c in cards:
+                if c not in card_ids:
+                    issues.append({"id": f"coverage:{it['id']}", "level": "error", "text": f"Card {c} is not in the merged drivers."})
+            if st in ("no_material_effect", "not_applicable") and not (e.get("sources") or e.get("finding")):
+                issues.append({"id": f"coverage:{it['id']}", "level": "error", "text": "A nil finding needs the sources checked or the reason."})
+            if st == "could_not_verify":
+                issues.append({"id": f"coverage:{it['id']}", "level": "warn", "text": f"Could not verify: {e.get('finding', '')}"})
+            rows.append({**it, "status": st, "cards": cards, "finding": e.get("finding", ""), "sources": e.get("sources", [])})
+    return rows, issues
+
+
 def render(cards: list[DriverCard], issues: list[dict], keep_ids: set[str], market_name: str, years: list[int],
-           ladder: dict, sources: list[str]) -> str:
+           ladder: dict, sources: list[str], coverage: list[dict] | None = None) -> str:
     today = date.today().isoformat()
     by_id: dict[str, list[dict]] = {}
     for i in issues:
@@ -99,6 +143,17 @@ def render(cards: list[DriverCard], issues: list[dict], keep_ids: set[str], mark
         chk = [i for i in by_id.get(c.id, []) if i["level"] in ("error", "warn")]
         if chk:
             L += ["**Automated checks**", ""] + [f"- {i['level']}: {i['text']}" for i in chk] + [""]
+    if coverage is not None:
+        done = sum(1 for r in coverage if r["status"] != "missing")
+        L += ["## Research coverage", "",
+              f"{done} of {len({r['id'] for r in coverage})} checklist items answered (config/research_checklist.yaml). "
+              "Every item needs a driver card or a recorded nil finding with the sources checked.", "",
+              "| Item | Researcher | Answer | Cards | Finding |", "| --- | --- | --- | --- | --- |"]
+        for r in coverage:
+            src = "; ".join(f"[{x.get('publisher', 'source')}]({x.get('url', '')})" for x in (r.get("sources") or [])[:3])
+            L.append(f"| {r['title']} | {r['owner']} | {STATUS_TEXT.get(r['status'], r['status'])} | {', '.join(r['cards'])} | "
+                     f"{(r['finding'] or '').replace('|', '/')}{(' Sources: ' + src) if src else ''} |")
+        L.append("")
     L += ["## Files merged", ""] + [f"- {s}" for s in sources] + [""]
     return "\n".join(L)
 
@@ -124,9 +179,17 @@ def build(market: str, files: list[Path] | None = None, stub_year: int | None = 
               "# or change chances on the page's Assumptions tab. Readable version: drivers.md.\n")
     out_yaml.write_text(header + yaml.safe_dump({"drivers": [c.model_dump(exclude_none=True) for c in cards]},
                                                 sort_keys=False, allow_unicode=True), encoding="utf-8")
+    cov_entries = []
+    for f in sorted(run_dir.glob("coverage_*.yaml")):
+        d = yaml.safe_load(f.read_text(encoding="utf-8")) or {}
+        cov_entries += d.get("coverage", []) if isinstance(d, dict) else d
+    checklist = load_checklist(root)
+    coverage, cov_issues = check_coverage(checklist, cov_entries, {c.id for c in cards}) if checklist else (None, [])
+    issues += cov_issues
     out_md = run_dir / "drivers.md"
     out_md.write_text(render(cards, issues, {c.id for c in keep}, cfg.name, years, dp.get("event_status_ladder", {}),
-                             [str(Path(f).relative_to(root)) if Path(f).is_relative_to(root) else str(f) for f in files]),
+                             [str(Path(f).relative_to(root)) if Path(f).is_relative_to(root) else str(f) for f in files],
+                             coverage),
                       encoding="utf-8")
     return out_yaml, out_md, issues
 
@@ -140,7 +203,7 @@ def main(argv: list[str] | None = None) -> int:
     y, m, issues = build(a.market, a.files or None, a.stub_year)
     errs = [i for i in issues if i["level"] == "error"]
     print(f"wrote {y}\nwrote {m}\n{len(errs)} errors, {sum(1 for i in issues if i['level'] == 'warn')} warnings")
-    for i in errs:
+    for i in errs[:60]:
         print("  error:", i["id"], i["text"])
     return 1 if errs else 0
 

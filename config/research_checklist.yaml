@@ -1,0 +1,62 @@
+# Research checklist for /forecast. Every item must be answered for every market, in
+# runs/<market>/coverage_<agent>.yaml: either with driver cards, or as checked with no material
+# effect (with the sources looked at), not applicable, or could not verify (with what was tried).
+# python -m engine.drivers.doc reports any item left unanswered as an error.
+# Orders of effect: first = direct demand or rate change; second = the market's reaction
+# (displacement, pricing, airline or supply response); third = slower knock-ons (reputation,
+# repeat visits, investment, new supply).
+version: 1
+items:
+  # ---------------- Calendar (demand-researcher) ----------------
+  - {id: cal.remaining_months, owner: events, title: "Current year, remaining months: every event and closure in the months after the last actual month, against the same months last year (both directions: new this year, or held last year and not repeated)"}
+  - {id: cal.recurring, owner: events, title: "Recurring events by month (trade fairs, congresses, festivals, sport, fashion weeks): date shifts between years, months gained or lost"}
+  - {id: cal.rotations, owner: events, title: "Multi-year rotations: biennial and triennial fairs and congresses, events that rotate between cities, odd and even year cycles"}
+  - {id: cal.mega_future, owner: events, title: "Mega-events awarded or bidding within the horizon (Olympics, World Cups, Euros, Expos, finals, Grand Departs, Eurovision, papal and royal events, Jubilees)"}
+  - {id: cal.concerts, owner: events, title: "Stadium concert tours and large one-off shows announced for the horizon"}
+  - {id: cal.base_effects, owner: events, title: "Base effects: one-offs in the last complete year and the current year that will not recur (they reduce growth the year after)"}
+  - {id: cal.congress_pipeline, owner: events, title: "Association congresses booked for future years (convention bureau, ICCA), and convention venue capacity added or lost"}
+  # ---------------- Access (demand-researcher) ----------------
+  - {id: air.traffic, owner: demand, title: "Airport passenger trend against its history (latest months, forecasts)"}
+  - {id: air.routes, owner: demand, title: "Routes and frequencies announced, cut or resumed; airline bases opened or closed; long-haul links"}
+  - {id: air.capacity, owner: demand, title: "Airport capacity: caps, slot limits, runway or terminal projects, night bans, strikes"}
+  - {id: rail.links, owner: demand, title: "Rail: high-speed lines, cross-border services, station works or closures, rail strikes"}
+  - {id: cruise, owner: demand, title: "Cruise calls and turnarounds, and limits on them"}
+  # ---------------- Source markets and macro (demand-researcher) ----------------
+  - {id: src.mix, owner: demand, title: "Source-market mix of room nights (domestic and top five international), from tourism statistics"}
+  - {id: src.macro, owner: demand, title: "GDP, real incomes and consumer confidence in the top source markets against their history"}
+  - {id: src.fx, owner: demand, title: "Exchange rates of the top source markets against the local currency"}
+  - {id: src.costs, owner: demand, title: "Travel costs: airfares, fuel and energy prices"}
+  - {id: src.longhaul, owner: demand, title: "Long-haul markets (US, Gulf, China, Japan, India): recovery, visa rules, flight access"}
+  # ---------------- Corporate and group (demand-researcher) ----------------
+  - {id: corp.employers, owner: demand, title: "Major employers, institutions and headquarters arriving, expanding or leaving; office return trends"}
+  - {id: corp.travel, owner: demand, title: "Corporate travel budgets and policies in the main source companies and sectors"}
+  - {id: corp.academic, owner: demand, title: "Universities, hospitals and research centres that generate visits"}
+  # ---------------- Policy (demand-researcher) ----------------
+  - {id: pol.taxes, owner: demand, title: "Tourist taxes and VAT on accommodation: changes enacted or proposed"}
+  - {id: pol.entry, owner: demand, title: "Entry rules: visas, ETIAS, UK ETA, EES border checks, and their timing"}
+  - {id: pol.str, owner: demand, title: "Short-term rental rules, registration and enforcement; listing counts"}
+  - {id: pol.overtourism, owner: demand, title: "Visitor management: entry fees, caps, bans on new tourist uses, cruise limits"}
+  - {id: pol.labour, owner: demand, title: "Labour costs and rules that push rates (minimum wage, staffing shortages)"}
+  # ---------------- Place (demand-researcher) ----------------
+  - {id: place.attractions, owner: events, title: "Attractions, museums, stadiums and venues opening, closing or renovating"}
+  - {id: place.works, owner: events, title: "Major construction and urban projects affecting access or appeal (metro lines, regeneration, road closures)"}
+  - {id: place.image, owner: events, title: "Destination reputation: rankings, safety perception, cleanliness, crime, media coverage"}
+  # ---------------- Supply (supply-analyst) ----------------
+  - {id: sup.pipeline_check, owner: supply, title: "Every pipeline project of 50 rooms or more: current status and opening date from public sources"}
+  - {id: sup.missing, owner: supply, title: "Projects missing from the export (planning applications, brand announcements, conversions)"}
+  - {id: sup.closures, owner: supply, title: "Closures, conversions to residential or student housing, and long-term temporary closures"}
+  - {id: sup.reopenings, owner: supply, title: "Temporarily closed hotels: reopening dates and the tier they reopen at"}
+  - {id: sup.repositioning, owner: supply, title: "Rebrands and repositionings that change a hotel's tier"}
+  - {id: sup.alternative, owner: supply, title: "Aparthotels, serviced apartments, hostels and other lodging outside CoStar's count"}
+  - {id: sup.policy, owner: supply, title: "Planning policy: hotel moratoriums, zoning, permits"}
+  - {id: sup.tier_check, owner: supply, title: "Whether the market's average tier in config/markets is right"}
+  # ---------------- Risk (geopolitics-analyst) ----------------
+  - {id: risk.conflict, owner: geopolitics, title: "Wars and conflicts affecting air routes, energy prices or travel sentiment"}
+  - {id: risk.terror, owner: geopolitics, title: "Terrorism threat level and recent incidents"}
+  - {id: risk.unrest, owner: geopolitics, title: "Civil unrest and strikes (national, transport, hotel sector)"}
+  - {id: risk.politics, owner: geopolitics, title: "Elections, government instability, policy shocks"}
+  - {id: risk.sanctions, owner: geopolitics, title: "Sanctions and their effect on source markets or air space"}
+  - {id: risk.health, owner: geopolitics, title: "Public health: outbreaks, advisories"}
+  - {id: risk.climate, owner: geopolitics, title: "Weather and climate: heatwaves, floods, snow reliability, wildfire"}
+  - {id: risk.systems, owner: geopolitics, title: "Systemic outages: air traffic control, IT, cyber attacks on travel infrastructure"}
+  - {id: risk.macro_downturn, owner: geopolitics, title: "Recession risk in the market's economy and top source markets"}

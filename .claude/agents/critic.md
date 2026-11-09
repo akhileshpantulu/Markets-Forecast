@@ -19,4 +19,9 @@ Inputs: the researchers' files `runs/<market>/drivers_*.yaml`, their notes (`res
    - Do two cards count the same effect?
 4. Edit the card in its `drivers_*.yaml` file: set `status: approved` or `rejected`, with a `reviewer_note` giving the reason. Return rejected cards to their author once with the reason; anything still unresolved stays `proposed` and goes to the user.
 5. Run `python -m engine.drivers.doc <market>` again and confirm it reports no errors.
-6. Write `runs/<market>/critique.md`: the cards reviewed, decisions and reasons, and open questions for the user. Direct sentences, no em dashes.
+6. Check research coverage (the "Research coverage" table in drivers.md):
+   - Every checklist item must be answered.
+   - Return a nil finding to its author if it rests on one source, has no local-language search, or does not cover the remaining months of the current year.
+   - Return any card for an event that recurs every year unchanged: it is already in the baseline.
+   - Look for missing base effects: one-offs last year that will not recur.
+7. Write `runs/<market>/critique.md`: the cards reviewed, decisions and reasons, and open questions for the user. Direct sentences, no em dashes.

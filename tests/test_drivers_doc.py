@@ -52,3 +52,21 @@ def test_output_file_is_not_merged_back_in(tmp_path):
     build(MARKET, stub_year=2026, root=tmp_path)
     y, _, _ = build(MARKET, stub_year=2026, root=tmp_path)    # drivers.yaml must not match drivers_*.yaml
     assert [d["id"] for d in yaml.safe_load(y.read_text())["drivers"]] == ["a"]
+
+
+def test_research_coverage_is_enforced(tmp_path):
+    run = _root(tmp_path)
+    (run / "drivers_demand.yaml").write_text(yaml.safe_dump({"drivers": [card(id="fair")]}))
+    _, md, issues = build(MARKET, stub_year=2026, root=tmp_path)
+    missing = [i for i in issues if i["id"].startswith("coverage:") and i["level"] == "error"]
+    assert len(missing) > 40 and "NOT RESEARCHED" in md.read_text()
+    items = yaml.safe_load((tmp_path / "config" / "research_checklist.yaml").read_text())["items"]
+    cov = [{"item": it["id"], "status": "no_material_effect", "finding": "Checked; nothing found.",
+            "sources": [{"publisher": "Organiser", "url": "https://example.org"}]} for it in items]
+    cov[0] = {"item": items[0]["id"], "status": "card", "cards": ["fair"]}
+    cov[1] = {"item": items[1]["id"], "status": "card", "cards": ["ghost"]}
+    (run / "coverage_demand.yaml").write_text(yaml.safe_dump({"coverage": cov}))
+    _, md, issues = build(MARKET, stub_year=2026, root=tmp_path)
+    errs = [i for i in issues if i["id"].startswith("coverage:") and i["level"] == "error"]
+    assert len(errs) == 1 and "ghost" in errs[0]["text"]
+    assert f"{len(items)} of {len(items)} checklist items answered" in md.read_text()

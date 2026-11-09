@@ -144,3 +144,22 @@ def test_calibration_recovers_supply_response_and_builds_error_library():
     assert set(lib["horizons"]) == {1, 2, 3, 4, 5} and len(lib["horizons"][1]["occ"]) == 7
     per, pooled = event_analogs(p, [{"id": "e", "name": "E", "type": "t", "year": 2010, "months": [6], "markets": ["M XXX"]}])
     assert per and "t" in pooled
+
+
+def test_current_year_is_ytd_growth_plus_remaining_month_events(res):
+    m = res.monthly
+    last = m["period_start"].max()
+    y0, k = last.year, last.month
+    cur, prev = m[m["period_start"].dt.year == y0], m[(m["period_start"].dt.year == y0 - 1) & (m["period_start"].dt.month <= k)]
+    occ = (cur["demand"].sum() / cur["supply"].sum()) / (prev["demand"].sum() / prev["supply"].sum()) - 1
+    o = run_ledger(res, CFG, PPRI, {}, n_paths=500)
+    stub = o["years"][0]
+    assert stub["is_stub"] and stub["lines"][0]["occ"] == pytest.approx(occ, abs=1e-12) and len(stub["lines"]) == 1
+    late = {"id": "late", "title": "Year-end event", "category": "events", "affects": "demand", "timing": {"start_year": y0, "months": [12]},
+            "probability": 1.0, "magnitude": {"dist": "fixed", "low": 1, "mode": 1, "high": 1, "unit": "pct_of_level"},
+            "already_in_baseline": "none", "baseline_overlap_note": "New.", "origin": "user", "status": "approved"}
+    gone = {**late, "id": "gone", "title": "Last year's event that does not recur", "timing": {"start_year": y0, "months": [k + 1]},
+            "magnitude": {"dist": "fixed", "low": -0.5, "mode": -0.5, "high": -0.5, "unit": "pct_of_level"}}
+    o2 = run_ledger(res, CFG, PPRI, {}, n_paths=500, drivers=[late, gone])
+    s2 = o2["years"][0]
+    assert s2["occ_growth"] - stub["occ_growth"] == pytest.approx(0.005, abs=1e-9)

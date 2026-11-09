@@ -19,8 +19,9 @@ Produce the drivers document for market `$ARGUMENTS`. Follow CLAUDE.md throughou
 
 ## 1. Research, in parallel
 
-Run the `supply-analyst`, `demand-researcher` and `geopolitics-analyst` agents at the same time. Pass each the market slug and the path to `results.json` if there is one. Each writes its own file with status `proposed`:
+Run the `events-researcher`, `demand-researcher`, `supply-analyst` and `geopolitics-analyst` agents at the same time. Each follows `.claude/research-method.md`, answers every item it owns in `config/research_checklist.yaml` (44 items), and writes `runs/$ARGUMENTS/coverage_<owner>.yaml` alongside its cards. Tell each the last actual month, so the current year's remaining months are covered against the same months last year. Pass each the market slug and the path to `results.json` if there is one. Each writes its own file with status `proposed`:
 
+- `runs/$ARGUMENTS/drivers_events.yaml` (plus the month-by-month calendar in `research_events.md`)
 - `runs/$ARGUMENTS/drivers_supply.yaml`
 - `runs/$ARGUMENTS/drivers_demand.yaml`
 - `runs/$ARGUMENTS/drivers_geopolitics.yaml` (plus `event_maps.md`)
@@ -33,7 +34,7 @@ Run the `critic` agent on the three files. It approves or rejects each card with
 
 ## 3. Build the document
 
-Run `python -m engine.drivers.doc $ARGUMENTS`. It merges `runs/$ARGUMENTS/drivers_*.yaml`, runs the automated checks and writes `drivers.yaml` and `drivers.md`. Fix any card with an error and run it again until there are no errors.
+Run `python -m engine.drivers.doc $ARGUMENTS`. It merges `runs/$ARGUMENTS/drivers_*.yaml`, runs the automated checks and writes `drivers.yaml` and `drivers.md`. Fix any card with an error, and send any unanswered checklist item back to its researcher, until there are no errors. The drivers document includes the research coverage table, so the user can see every item checked and what was found.
 
 ## 4. Summarise for the user
 

@@ -177,8 +177,6 @@ def build(market: str, files: list[Path] | None = None, stub_year: int | None = 
     header = (f"# Drivers for {cfg.name}, generated {date.today().isoformat()} by python -m engine.drivers.doc.\n"
               "# Drop this file into the Drivers slot on the forecast page. Edit `status` to approve or reject a card,\n"
               "# or change chances on the page's Assumptions tab. Readable version: drivers.md.\n")
-    out_yaml.write_text(header + yaml.safe_dump({"drivers": [c.model_dump(exclude_none=True) for c in cards]},
-                                                sort_keys=False, allow_unicode=True), encoding="utf-8")
     cov_entries = []
     for f in sorted(run_dir.glob("coverage_*.yaml")):
         d = yaml.safe_load(f.read_text(encoding="utf-8")) or {}
@@ -186,6 +184,10 @@ def build(market: str, files: list[Path] | None = None, stub_year: int | None = 
     checklist = load_checklist(root)
     coverage, cov_issues = check_coverage(checklist, cov_entries, {c.id for c in cards}) if checklist else (None, [])
     issues += cov_issues
+    doc_out = {"drivers": [c.model_dump(exclude_none=True) for c in cards]}
+    if cov_entries:
+        doc_out["coverage"] = cov_entries                  # same format as a Cowork research file
+    out_yaml.write_text(header + yaml.safe_dump(doc_out, sort_keys=False, allow_unicode=True), encoding="utf-8")
     out_md = run_dir / "drivers.md"
     out_md.write_text(render(cards, issues, {c.id for c in keep}, cfg.name, years, dp.get("event_status_ladder", {}),
                              [str(Path(f).relative_to(root)) if Path(f).is_relative_to(root) else str(f) for f in files],

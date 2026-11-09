@@ -70,3 +70,5 @@ def test_research_coverage_is_enforced(tmp_path):
     errs = [i for i in issues if i["id"].startswith("coverage:") and i["level"] == "error"]
     assert len(errs) == 1 and "ghost" in errs[0]["text"]
     assert f"{len(items)} of {len(items)} checklist items answered" in md.read_text()
+    out = yaml.safe_load((run / "drivers.yaml").read_text())
+    assert len(out["coverage"]) == len(items) and out["drivers"][0]["id"] == "fair"     # one file, like Cowork's

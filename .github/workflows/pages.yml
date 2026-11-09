@@ -4,10 +4,18 @@
 # data file or run output ever ends up in the build.
 name: deploy-web
 
+# Redeploys automatically on every push that touches the page, the engine or config, on the
+# working branch or main. Commits made by the external-data workflow use GITHUB_TOKEN, which does
+# not trigger push events, so a finished external-data run also redeploys (it can change
+# config/macro/generated, which the page bundles).
 on:
   push:
-    branches: [main]
+    branches: [main, claude/intelligent-cerf-lpl7w9]
     paths: ["web/**", "engine/**", "config/**", "data/mappings/**", ".github/workflows/pages.yml"]
+  workflow_run:
+    workflows: [external-data]
+    types: [completed]
+    branches: [main, claude/intelligent-cerf-lpl7w9]
   workflow_dispatch:
 
 permissions:
@@ -21,9 +29,12 @@ concurrency:
 
 jobs:
   build:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref }}
       - name: Confirm the site is client-side only
         run: |
           grep -Eq '^frontend_mode: client_side_only' config/hosting.yaml

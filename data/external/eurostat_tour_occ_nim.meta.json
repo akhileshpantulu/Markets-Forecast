@@ -4,10 +4,10 @@
  "publisher": "Eurostat",
  "title": "Nights spent at tourist accommodation establishments, monthly (hotels, NACE I55.1)",
  "format": "jsonstat",
- "fetched_at": "2026-11-09T13:52:12+00:00",
+ "fetched_at": "2026-11-16T13:36:58+00:00",
  "http_status": 200,
  "content_type": "application/json",
  "bytes": 40056,
- "sha256": "ce323df0b30de70521119f211342edd161f9160cdc2008b74e20e00b65ecfff7",
+ "sha256": "d7df70a7b41a6f624832181d416f412024ed81cf564926fa2ae44a765c6281eb",
  "body_file": "eurostat_tour_occ_nim.body.json"
 }

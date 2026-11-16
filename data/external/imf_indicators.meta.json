@@ -4,10 +4,10 @@
  "publisher": "International Monetary Fund",
  "title": "DataMapper indicator catalogue",
  "format": "json",
- "fetched_at": "2026-11-09T13:52:21+00:00",
+ "fetched_at": "2026-11-16T13:37:07+00:00",
  "http_status": 200,
  "content_type": "application/json",
  "bytes": 48417,
- "sha256": "30d77f9f74ca8c2777193db842876398688dad62f846e76fbdf4d49899e48d62",
+ "sha256": "0237c9006063522f2828e7ea8675ba74aea83b18fe6e7e0347c500a0414ec0a5",
  "body_file": "imf_indicators.body.json"
 }

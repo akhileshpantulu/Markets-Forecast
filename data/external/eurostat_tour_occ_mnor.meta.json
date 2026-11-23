@@ -4,7 +4,7 @@
  "publisher": "Eurostat",
  "title": "Net occupancy rate of bed-places and bedrooms, monthly (hotels)",
  "format": "jsonstat",
- "fetched_at": "2026-11-16T13:37:01+00:00",
+ "fetched_at": "2026-11-23T15:56:21+00:00",
  "http_status": 200,
  "content_type": "application/json",
  "bytes": 23468,

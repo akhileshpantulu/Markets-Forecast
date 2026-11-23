@@ -4,10 +4,10 @@
  "publisher": "Instituto Nacional de Estadistica (Spain)",
  "title": "INE Tempus table 2058 (hotel occupancy survey)",
  "format": "ine_json",
- "fetched_at": "2026-11-16T13:37:25+00:00",
+ "fetched_at": "2026-11-23T15:56:59+00:00",
  "http_status": 200,
  "content_type": "application/json;charset=UTF-8",
- "bytes": 439345,
- "sha256": "b0881d290a19f264a8c87d04b821c18cf3131460f0ffaf89f45e85076f93fa90",
+ "bytes": 441243,
+ "sha256": "449a0b307f8b02c0fd407476417f3d654755804a2d1dc51420fcf8a7a87bab0f",
  "body_file": "ine_2058.body.json"
 }

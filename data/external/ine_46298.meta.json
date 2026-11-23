@@ -4,10 +4,10 @@
  "publisher": "Instituto Nacional de Estadistica (Spain)",
  "title": "INE Tempus table 46298",
  "format": "ine_json",
- "fetched_at": "2026-11-16T13:37:37+00:00",
+ "fetched_at": "2026-11-23T15:57:12+00:00",
  "http_status": 200,
  "content_type": "application/json;charset=UTF-8",
- "bytes": 1889307,
- "sha256": "34d5df1dccb9d556116aa66bd9ba04b0621ffbd67eacd31a179559b62aa038c3",
+ "bytes": 1914750,
+ "sha256": "a4002c4cd91224ad3fd83ac41c2a66356cabce8a038a8b063d3b9963c00d88eb",
  "body_file": "ine_46298.body.json"
 }

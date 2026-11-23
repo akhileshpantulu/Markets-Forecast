@@ -4,10 +4,10 @@
  "publisher": "Eurostat",
  "title": "Air passenger transport by reporting country, monthly (total and extra-EU)",
  "format": "jsonstat",
- "fetched_at": "2026-11-16T13:37:04+00:00",
+ "fetched_at": "2026-11-23T15:56:25+00:00",
  "http_status": 200,
  "content_type": "application/json",
  "bytes": 6629,
- "sha256": "92bd5dcaebcd449646d1130a9332d3c8fb478c6da10f61f1a64b26d599a77bba",
+ "sha256": "8df9a2d42780e07b0b536ffb10465ab73bb6add573b2346b1ae58ac702e0bd13",
  "body_file": "eurostat_avia_paoc.body.json"
 }

@@ -4,10 +4,10 @@
  "publisher": "Eurostat",
  "title": "Air passenger transport by reporting airport, monthly (passengers carried), incl. Paris CDG (FR_LFPG) and Orly (FR_LFPO)",
  "format": "jsonstat",
- "fetched_at": "2026-11-16T13:37:04+00:00",
+ "fetched_at": "2026-11-23T15:56:25+00:00",
  "http_status": 200,
  "content_type": "application/json",
  "bytes": 6891,
- "sha256": "84f359eb1f52d841d486b5aaa7743ac114e7382eeec6d92aeac26c170ec5e863",
+ "sha256": "bc3810334e19e35fa73e8be40258488b3ad589fd11dbb8e73593c3f46328656f",
  "body_file": "eurostat_avia_paoa.body.json"
 }

@@ -3,7 +3,8 @@
 ,{"Id":9834, "T3_Variable":"TIPO DE CATEGORIA", "Nombre":"Total categorías", "Codigo":""}
 ,{"Id":72, "T3_Variable":"Tipo de dato", "Nombre":"Dato", "Codigo":"0"}
 ]
-, "Data":[{"Fecha":"2026-09-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M09", "Anyo":2026, "Valor":141.61}
+, "Data":[{"Fecha":"2026-10-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M10", "Anyo":2026, "Valor":130.4}
+,{"Fecha":"2026-09-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M09", "Anyo":2026, "Valor":141.61}
 ,{"Fecha":"2026-08-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M08", "Anyo":2026, "Valor":166.9}
 ,{"Fecha":"2026-07-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M07", "Anyo":2026, "Valor":156.92}
 ,{"Fecha":"2026-06-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M06", "Anyo":2026, "Valor":137.11}
@@ -14,7 +15,7 @@
 ,{"Fecha":"2026-01-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M01", "Anyo":2026, "Valor":116.04}
 ,{"Fecha":"2025-12-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M12", "Anyo":2025, "Valor":120.31}
 ,{"Fecha":"2025-11-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M11", "Anyo":2025, "Valor":117.09}
-,{"Fecha":"2025-10-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M10", "Anyo":2025, "Valor":120.54}
+,{"Fecha":"2025-10-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M10", "Anyo":2025, "Valor":120.86}
 ,{"Fecha":"2025-09-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M09", "Anyo":2025, "Valor":131.84}
 ,{"Fecha":"2025-08-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M08", "Anyo":2025, "Valor":155.52}
 ,{"Fecha":"2025-07-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M07", "Anyo":2025, "Valor":146.94}
@@ -235,7 +236,8 @@
 ,{"Id":9834, "T3_Variable":"TIPO DE CATEGORIA", "Nombre":"Total categorías", "Codigo":""}
 ,{"Id":76, "T3_Variable":"Tipo de dato", "Nombre":"Tasa de variación interanual", "Codigo":"1"}
 ]
-, "Data":[{"Fecha":"2026-09-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M09", "Anyo":2026, "Valor":7.41}
+, "Data":[{"Fecha":"2026-10-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M10", "Anyo":2026, "Valor":7.89}
+,{"Fecha":"2026-09-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M09", "Anyo":2026, "Valor":7.41}
 ,{"Fecha":"2026-08-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M08", "Anyo":2026, "Valor":7.32}
 ,{"Fecha":"2026-07-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M07", "Anyo":2026, "Valor":6.79}
 ,{"Fecha":"2026-06-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M06", "Anyo":2026, "Valor":5.84}
@@ -246,7 +248,7 @@
 ,{"Fecha":"2026-01-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M01", "Anyo":2026, "Valor":2.97}
 ,{"Fecha":"2025-12-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M12", "Anyo":2025, "Valor":2.5}
 ,{"Fecha":"2025-11-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M11", "Anyo":2025, "Valor":2.97}
-,{"Fecha":"2025-10-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M10", "Anyo":2025, "Valor":3.87}
+,{"Fecha":"2025-10-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M10", "Anyo":2025, "Valor":4.14}
 ,{"Fecha":"2025-09-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M09", "Anyo":2025, "Valor":5.3}
 ,{"Fecha":"2025-08-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M08", "Anyo":2025, "Valor":5.92}
 ,{"Fecha":"2025-07-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M07", "Anyo":2025, "Valor":4.96}
@@ -467,7 +469,8 @@
 ,{"Id":9835, "T3_Variable":"TIPO DE CATEGORIA", "Nombre":"Cinco estrellas de oro", "Codigo":""}
 ,{"Id":72, "T3_Variable":"Tipo de dato", "Nombre":"Dato", "Codigo":"0"}
 ]
-, "Data":[{"Fecha":"2026-09-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M09", "Anyo":2026, "Valor":332.75}
+, "Data":[{"Fecha":"2026-10-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M10", "Anyo":2026, "Valor":312.07}
+,{"Fecha":"2026-09-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M09", "Anyo":2026, "Valor":332.75}
 ,{"Fecha":"2026-08-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M08", "Anyo":2026, "Valor":357.83}
 ,{"Fecha":"2026-07-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M07", "Anyo":2026, "Valor":339.03}
 ,{"Fecha":"2026-06-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M06", "Anyo":2026, "Valor":317.87}
@@ -478,7 +481,7 @@
 ,{"Fecha":"2026-01-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M01", "Anyo":2026, "Valor":265.86}
 ,{"Fecha":"2025-12-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M12", "Anyo":2025, "Valor":277.54}
 ,{"Fecha":"2025-11-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M11", "Anyo":2025, "Valor":261.61}
-,{"Fecha":"2025-10-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M10", "Anyo":2025, "Valor":283.64}
+,{"Fecha":"2025-10-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M10", "Anyo":2025, "Valor":285.65}
 ,{"Fecha":"2025-09-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M09", "Anyo":2025, "Valor":300.12}
 ,{"Fecha":"2025-08-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M08", "Anyo":2025, "Valor":337.63}
 ,{"Fecha":"2025-07-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M07", "Anyo":2025, "Valor":337.8}
@@ -699,7 +702,8 @@
 ,{"Id":9835, "T3_Variable":"TIPO DE CATEGORIA", "Nombre":"Cinco estrellas de oro", "Codigo":""}
 ,{"Id":76, "T3_Variable":"Tipo de dato", "Nombre":"Tasa de variación interanual", "Codigo":"1"}
 ]
-, "Data":[{"Fecha":"2026-09-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M09", "Anyo":2026, "Valor":10.87}
+, "Data":[{"Fecha":"2026-10-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M10", "Anyo":2026, "Valor":9.25}
+,{"Fecha":"2026-09-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M09", "Anyo":2026, "Valor":10.87}
 ,{"Fecha":"2026-08-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M08", "Anyo":2026, "Valor":5.98}
 ,{"Fecha":"2026-07-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M07", "Anyo":2026, "Valor":0.36}
 ,{"Fecha":"2026-06-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M06", "Anyo":2026, "Valor":2.77}
@@ -710,7 +714,7 @@
 ,{"Fecha":"2026-01-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M01", "Anyo":2026, "Valor":4.08}
 ,{"Fecha":"2025-12-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M12", "Anyo":2025, "Valor":0.4}
 ,{"Fecha":"2025-11-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M11", "Anyo":2025, "Valor":4.65}
-,{"Fecha":"2025-10-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M10", "Anyo":2025, "Valor":3.84}
+,{"Fecha":"2025-10-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M10", "Anyo":2025, "Valor":4.58}
 ,{"Fecha":"2025-09-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M09", "Anyo":2025, "Valor":6.0}
 ,{"Fecha":"2025-08-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M08", "Anyo":2025, "Valor":7.92}
 ,{"Fecha":"2025-07-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M07", "Anyo":2025, "Valor":7.04}
@@ -931,7 +935,8 @@
 ,{"Id":9836, "T3_Variable":"TIPO DE CATEGORIA", "Nombre":"Cuatro estrellas de oro", "Codigo":""}
 ,{"Id":72, "T3_Variable":"Tipo de dato", "Nombre":"Dato", "Codigo":"0"}
 ]
-, "Data":[{"Fecha":"2026-09-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M09", "Anyo":2026, "Valor":144.31}
+, "Data":[{"Fecha":"2026-10-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M10", "Anyo":2026, "Valor":131.48}
+,{"Fecha":"2026-09-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M09", "Anyo":2026, "Valor":144.31}
 ,{"Fecha":"2026-08-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M08", "Anyo":2026, "Valor":176.7}
 ,{"Fecha":"2026-07-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M07", "Anyo":2026, "Valor":164.77}
 ,{"Fecha":"2026-06-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M06", "Anyo":2026, "Valor":141.27}
@@ -942,7 +947,7 @@
 ,{"Fecha":"2026-01-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M01", "Anyo":2026, "Valor":119.61}
 ,{"Fecha":"2025-12-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M12", "Anyo":2025, "Valor":125.95}
 ,{"Fecha":"2025-11-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M11", "Anyo":2025, "Valor":120.96}
-,{"Fecha":"2025-10-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M10", "Anyo":2025, "Valor":122.55}
+,{"Fecha":"2025-10-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M10", "Anyo":2025, "Valor":122.6}
 ,{"Fecha":"2025-09-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M09", "Anyo":2025, "Valor":136.55}
 ,{"Fecha":"2025-08-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M08", "Anyo":2025, "Valor":163.87}
 ,{"Fecha":"2025-07-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M07", "Anyo":2025, "Valor":153.59}
@@ -1163,7 +1168,8 @@
 ,{"Id":9836, "T3_Variable":"TIPO DE CATEGORIA", "Nombre":"Cuatro estrellas de oro", "Codigo":""}
 ,{"Id":76, "T3_Variable":"Tipo de dato", "Nombre":"Tasa de variación interanual", "Codigo":"1"}
 ]
-, "Data":[{"Fecha":"2026-09-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M09", "Anyo":2026, "Valor":5.68}
+, "Data":[{"Fecha":"2026-10-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M10", "Anyo":2026, "Valor":7.24}
+,{"Fecha":"2026-09-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M09", "Anyo":2026, "Valor":5.68}
 ,{"Fecha":"2026-08-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M08", "Anyo":2026, "Valor":7.83}
 ,{"Fecha":"2026-07-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M07", "Anyo":2026, "Valor":7.28}
 ,{"Fecha":"2026-06-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M06", "Anyo":2026, "Valor":6.14}
@@ -1174,7 +1180,7 @@
 ,{"Fecha":"2026-01-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M01", "Anyo":2026, "Valor":3.88}
 ,{"Fecha":"2025-12-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M12", "Anyo":2025, "Valor":3.19}
 ,{"Fecha":"2025-11-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M11", "Anyo":2025, "Valor":2.36}
-,{"Fecha":"2025-10-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M10", "Anyo":2025, "Valor":4.09}
+,{"Fecha":"2025-10-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M10", "Anyo":2025, "Valor":4.13}
 ,{"Fecha":"2025-09-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M09", "Anyo":2025, "Valor":5.19}
 ,{"Fecha":"2025-08-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M08", "Anyo":2025, "Valor":5.67}
 ,{"Fecha":"2025-07-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M07", "Anyo":2025, "Valor":4.65}
@@ -1395,7 +1401,8 @@
 ,{"Id":9837, "T3_Variable":"TIPO DE CATEGORIA", "Nombre":"Tres estrellas de oro", "Codigo":""}
 ,{"Id":72, "T3_Variable":"Tipo de dato", "Nombre":"Dato", "Codigo":"0"}
 ]
-, "Data":[{"Fecha":"2026-09-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M09", "Anyo":2026, "Valor":115.56}
+, "Data":[{"Fecha":"2026-10-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M10", "Anyo":2026, "Valor":99.63}
+,{"Fecha":"2026-09-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M09", "Anyo":2026, "Valor":115.56}
 ,{"Fecha":"2026-08-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M08", "Anyo":2026, "Valor":144.97}
 ,{"Fecha":"2026-07-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M07", "Anyo":2026, "Valor":132.64}
 ,{"Fecha":"2026-06-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M06", "Anyo":2026, "Valor":110.88}
@@ -1406,7 +1413,7 @@
 ,{"Fecha":"2026-01-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M01", "Anyo":2026, "Valor":90.4}
 ,{"Fecha":"2025-12-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M12", "Anyo":2025, "Valor":93.89}
 ,{"Fecha":"2025-11-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M11", "Anyo":2025, "Valor":90.88}
-,{"Fecha":"2025-10-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M10", "Anyo":2025, "Valor":93.0}
+,{"Fecha":"2025-10-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M10", "Anyo":2025, "Valor":93.31}
 ,{"Fecha":"2025-09-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M09", "Anyo":2025, "Valor":106.8}
 ,{"Fecha":"2025-08-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M08", "Anyo":2025, "Valor":135.31}
 ,{"Fecha":"2025-07-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M07", "Anyo":2025, "Valor":124.15}
@@ -1627,7 +1634,8 @@
 ,{"Id":9837, "T3_Variable":"TIPO DE CATEGORIA", "Nombre":"Tres estrellas de oro", "Codigo":""}
 ,{"Id":76, "T3_Variable":"Tipo de dato", "Nombre":"Tasa de variación interanual", "Codigo":"1"}
 ]
-, "Data":[{"Fecha":"2026-09-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M09", "Anyo":2026, "Valor":8.2}
+, "Data":[{"Fecha":"2026-10-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M10", "Anyo":2026, "Valor":6.77}
+,{"Fecha":"2026-09-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M09", "Anyo":2026, "Valor":8.2}
 ,{"Fecha":"2026-08-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M08", "Anyo":2026, "Valor":7.14}
 ,{"Fecha":"2026-07-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M07", "Anyo":2026, "Valor":6.84}
 ,{"Fecha":"2026-06-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M06", "Anyo":2026, "Valor":6.35}
@@ -1638,7 +1646,7 @@
 ,{"Fecha":"2026-01-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M01", "Anyo":2026, "Valor":3.87}
 ,{"Fecha":"2025-12-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M12", "Anyo":2025, "Valor":4.87}
 ,{"Fecha":"2025-11-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M11", "Anyo":2025, "Valor":4.57}
-,{"Fecha":"2025-10-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M10", "Anyo":2025, "Valor":3.41}
+,{"Fecha":"2025-10-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M10", "Anyo":2025, "Valor":3.76}
 ,{"Fecha":"2025-09-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M09", "Anyo":2025, "Valor":4.98}
 ,{"Fecha":"2025-08-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M08", "Anyo":2025, "Valor":5.94}
 ,{"Fecha":"2025-07-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M07", "Anyo":2025, "Valor":5.22}
@@ -1859,7 +1867,8 @@
 ,{"Id":9838, "T3_Variable":"TIPO DE CATEGORIA", "Nombre":"Dos estrellas de oro", "Codigo":""}
 ,{"Id":72, "T3_Variable":"Tipo de dato", "Nombre":"Dato", "Codigo":"0"}
 ]
-, "Data":[{"Fecha":"2026-09-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M09", "Anyo":2026, "Valor":91.96}
+, "Data":[{"Fecha":"2026-10-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M10", "Anyo":2026, "Valor":91.01}
+,{"Fecha":"2026-09-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M09", "Anyo":2026, "Valor":91.96}
 ,{"Fecha":"2026-08-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M08", "Anyo":2026, "Valor":107.02}
 ,{"Fecha":"2026-07-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M07", "Anyo":2026, "Valor":100.1}
 ,{"Fecha":"2026-06-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M06", "Anyo":2026, "Valor":89.57}
@@ -1870,7 +1879,7 @@
 ,{"Fecha":"2026-01-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M01", "Anyo":2026, "Valor":72.86}
 ,{"Fecha":"2025-12-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M12", "Anyo":2025, "Valor":74.74}
 ,{"Fecha":"2025-11-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M11", "Anyo":2025, "Valor":77.27}
-,{"Fecha":"2025-10-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M10", "Anyo":2025, "Valor":83.34}
+,{"Fecha":"2025-10-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M10", "Anyo":2025, "Valor":83.54}
 ,{"Fecha":"2025-09-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M09", "Anyo":2025, "Valor":88.65}
 ,{"Fecha":"2025-08-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M08", "Anyo":2025, "Valor":102.0}
 ,{"Fecha":"2025-07-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M07", "Anyo":2025, "Valor":94.1}
@@ -2091,7 +2100,8 @@
 ,{"Id":9838, "T3_Variable":"TIPO DE CATEGORIA", "Nombre":"Dos estrellas de oro", "Codigo":""}
 ,{"Id":76, "T3_Variable":"Tipo de dato", "Nombre":"Tasa de variación interanual", "Codigo":"1"}
 ]
-, "Data":[{"Fecha":"2026-09-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M09", "Anyo":2026, "Valor":3.74}
+, "Data":[{"Fecha":"2026-10-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M10", "Anyo":2026, "Valor":8.94}
+,{"Fecha":"2026-09-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M09", "Anyo":2026, "Valor":3.74}
 ,{"Fecha":"2026-08-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M08", "Anyo":2026, "Valor":4.92}
 ,{"Fecha":"2026-07-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M07", "Anyo":2026, "Valor":6.38}
 ,{"Fecha":"2026-06-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M06", "Anyo":2026, "Valor":-1.88}
@@ -2102,7 +2112,7 @@
 ,{"Fecha":"2026-01-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M01", "Anyo":2026, "Valor":5.5}
 ,{"Fecha":"2025-12-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M12", "Anyo":2025, "Valor":4.56}
 ,{"Fecha":"2025-11-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M11", "Anyo":2025, "Valor":7.3}
-,{"Fecha":"2025-10-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M10", "Anyo":2025, "Valor":4.62}
+,{"Fecha":"2025-10-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M10", "Anyo":2025, "Valor":4.88}
 ,{"Fecha":"2025-09-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M09", "Anyo":2025, "Valor":2.85}
 ,{"Fecha":"2025-08-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M08", "Anyo":2025, "Valor":-0.63}
 ,{"Fecha":"2025-07-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M07", "Anyo":2025, "Valor":-0.33}
@@ -2323,7 +2333,8 @@
 ,{"Id":9839, "T3_Variable":"TIPO DE CATEGORIA", "Nombre":"Una estrella de oro", "Codigo":""}
 ,{"Id":72, "T3_Variable":"Tipo de dato", "Nombre":"Dato", "Codigo":"0"}
 ]
-, "Data":[{"Fecha":"2026-09-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M09", "Anyo":2026, "Valor":93.59}
+, "Data":[{"Fecha":"2026-10-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M10", "Anyo":2026, "Valor":91.5}
+,{"Fecha":"2026-09-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M09", "Anyo":2026, "Valor":93.59}
 ,{"Fecha":"2026-08-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M08", "Anyo":2026, "Valor":99.07}
 ,{"Fecha":"2026-07-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M07", "Anyo":2026, "Valor":115.34}
 ,{"Fecha":"2026-06-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M06", "Anyo":2026, "Valor":108.19}
@@ -2334,7 +2345,7 @@
 ,{"Fecha":"2026-01-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M01", "Anyo":2026, "Valor":71.57}
 ,{"Fecha":"2025-12-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M12", "Anyo":2025, "Valor":73.5}
 ,{"Fecha":"2025-11-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M11", "Anyo":2025, "Valor":77.69}
-,{"Fecha":"2025-10-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M10", "Anyo":2025, "Valor":88.15}
+,{"Fecha":"2025-10-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M10", "Anyo":2025, "Valor":87.13}
 ,{"Fecha":"2025-09-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M09", "Anyo":2025, "Valor":84.84}
 ,{"Fecha":"2025-08-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M08", "Anyo":2025, "Valor":97.3}
 ,{"Fecha":"2025-07-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M07", "Anyo":2025, "Valor":87.4}
@@ -2555,7 +2566,8 @@
 ,{"Id":9839, "T3_Variable":"TIPO DE CATEGORIA", "Nombre":"Una estrella de oro", "Codigo":""}
 ,{"Id":76, "T3_Variable":"Tipo de dato", "Nombre":"Tasa de variación interanual", "Codigo":"1"}
 ]
-, "Data":[{"Fecha":"2026-09-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M09", "Anyo":2026, "Valor":10.32}
+, "Data":[{"Fecha":"2026-10-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M10", "Anyo":2026, "Valor":5.01}
+,{"Fecha":"2026-09-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M09", "Anyo":2026, "Valor":10.32}
 ,{"Fecha":"2026-08-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M08", "Anyo":2026, "Valor":1.82}
 ,{"Fecha":"2026-07-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M07", "Anyo":2026, "Valor":31.97}
 ,{"Fecha":"2026-06-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M06", "Anyo":2026, "Valor":21.52}
@@ -2566,7 +2578,7 @@
 ,{"Fecha":"2026-01-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M01", "Anyo":2026, "Valor":2.15}
 ,{"Fecha":"2025-12-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M12", "Anyo":2025, "Valor":6.95}
 ,{"Fecha":"2025-11-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M11", "Anyo":2025, "Valor":0.35}
-,{"Fecha":"2025-10-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M10", "Anyo":2025, "Valor":6.12}
+,{"Fecha":"2025-10-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M10", "Anyo":2025, "Valor":4.91}
 ,{"Fecha":"2025-09-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M09", "Anyo":2025, "Valor":-2.48}
 ,{"Fecha":"2025-08-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M08", "Anyo":2025, "Valor":4.28}
 ,{"Fecha":"2025-07-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M07", "Anyo":2025, "Valor":0.13}
@@ -2787,7 +2799,8 @@
 ,{"Id":9840, "T3_Variable":"TIPO DE CATEGORIA", "Nombre":"Tres y dos estrellas de plata", "Codigo":""}
 ,{"Id":72, "T3_Variable":"Tipo de dato", "Nombre":"Dato", "Codigo":"0"}
 ]
-, "Data":[{"Fecha":"2026-09-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M09", "Anyo":2026, "Valor":83.56}
+, "Data":[{"Fecha":"2026-10-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M10", "Anyo":2026, "Valor":83.52}
+,{"Fecha":"2026-09-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M09", "Anyo":2026, "Valor":83.56}
 ,{"Fecha":"2026-08-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M08", "Anyo":2026, "Valor":90.6}
 ,{"Fecha":"2026-07-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M07", "Anyo":2026, "Valor":89.65}
 ,{"Fecha":"2026-06-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M06", "Anyo":2026, "Valor":82.93}
@@ -2798,7 +2811,7 @@
 ,{"Fecha":"2026-01-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M01", "Anyo":2026, "Valor":59.29}
 ,{"Fecha":"2025-12-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M12", "Anyo":2025, "Valor":68.07}
 ,{"Fecha":"2025-11-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M11", "Anyo":2025, "Valor":65.99}
-,{"Fecha":"2025-10-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M10", "Anyo":2025, "Valor":75.02}
+,{"Fecha":"2025-10-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M10", "Anyo":2025, "Valor":75.01}
 ,{"Fecha":"2025-09-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M09", "Anyo":2025, "Valor":79.5}
 ,{"Fecha":"2025-08-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M08", "Anyo":2025, "Valor":86.04}
 ,{"Fecha":"2025-07-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M07", "Anyo":2025, "Valor":84.82}
@@ -3019,7 +3032,8 @@
 ,{"Id":9840, "T3_Variable":"TIPO DE CATEGORIA", "Nombre":"Tres y dos estrellas de plata", "Codigo":""}
 ,{"Id":76, "T3_Variable":"Tipo de dato", "Nombre":"Tasa de variación interanual", "Codigo":"1"}
 ]
-, "Data":[{"Fecha":"2026-09-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M09", "Anyo":2026, "Valor":5.11}
+, "Data":[{"Fecha":"2026-10-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M10", "Anyo":2026, "Valor":11.35}
+,{"Fecha":"2026-09-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M09", "Anyo":2026, "Valor":5.11}
 ,{"Fecha":"2026-08-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M08", "Anyo":2026, "Valor":5.29}
 ,{"Fecha":"2026-07-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M07", "Anyo":2026, "Valor":5.69}
 ,{"Fecha":"2026-06-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M06", "Anyo":2026, "Valor":4.38}
@@ -3030,7 +3044,7 @@
 ,{"Fecha":"2026-01-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M01", "Anyo":2026, "Valor":2.18}
 ,{"Fecha":"2025-12-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M12", "Anyo":2025, "Valor":7.97}
 ,{"Fecha":"2025-11-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M11", "Anyo":2025, "Valor":1.99}
-,{"Fecha":"2025-10-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M10", "Anyo":2025, "Valor":4.87}
+,{"Fecha":"2025-10-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M10", "Anyo":2025, "Valor":4.86}
 ,{"Fecha":"2025-09-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M09", "Anyo":2025, "Valor":4.24}
 ,{"Fecha":"2025-08-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M08", "Anyo":2025, "Valor":4.68}
 ,{"Fecha":"2025-07-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M07", "Anyo":2025, "Valor":6.89}
@@ -3251,7 +3265,8 @@
 ,{"Id":9841, "T3_Variable":"TIPO DE CATEGORIA", "Nombre":"Una estrella de plata", "Codigo":""}
 ,{"Id":72, "T3_Variable":"Tipo de dato", "Nombre":"Dato", "Codigo":"0"}
 ]
-, "Data":[{"Fecha":"2026-09-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M09", "Anyo":2026, "Valor":93.23}
+, "Data":[{"Fecha":"2026-10-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M10", "Anyo":2026, "Valor":80.12}
+,{"Fecha":"2026-09-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M09", "Anyo":2026, "Valor":93.23}
 ,{"Fecha":"2026-08-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M08", "Anyo":2026, "Valor":89.72}
 ,{"Fecha":"2026-07-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M07", "Anyo":2026, "Valor":85.17}
 ,{"Fecha":"2026-06-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M06", "Anyo":2026, "Valor":80.77}
@@ -3262,7 +3277,7 @@
 ,{"Fecha":"2026-01-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M01", "Anyo":2026, "Valor":62.82}
 ,{"Fecha":"2025-12-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M12", "Anyo":2025, "Valor":63.52}
 ,{"Fecha":"2025-11-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M11", "Anyo":2025, "Valor":65.96}
-,{"Fecha":"2025-10-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M10", "Anyo":2025, "Valor":73.23}
+,{"Fecha":"2025-10-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M10", "Anyo":2025, "Valor":73.59}
 ,{"Fecha":"2025-09-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M09", "Anyo":2025, "Valor":82.91}
 ,{"Fecha":"2025-08-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M08", "Anyo":2025, "Valor":88.11}
 ,{"Fecha":"2025-07-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M07", "Anyo":2025, "Valor":80.66}
@@ -3483,7 +3498,8 @@
 ,{"Id":9841, "T3_Variable":"TIPO DE CATEGORIA", "Nombre":"Una estrella de plata", "Codigo":""}
 ,{"Id":76, "T3_Variable":"Tipo de dato", "Nombre":"Tasa de variación interanual", "Codigo":"1"}
 ]
-, "Data":[{"Fecha":"2026-09-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M09", "Anyo":2026, "Valor":12.45}
+, "Data":[{"Fecha":"2026-10-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M10", "Anyo":2026, "Valor":8.87}
+,{"Fecha":"2026-09-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M09", "Anyo":2026, "Valor":12.45}
 ,{"Fecha":"2026-08-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M08", "Anyo":2026, "Valor":1.82}
 ,{"Fecha":"2026-07-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M07", "Anyo":2026, "Valor":5.59}
 ,{"Fecha":"2026-06-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M06", "Anyo":2026, "Valor":3.86}
@@ -3494,7 +3510,7 @@
 ,{"Fecha":"2026-01-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M01", "Anyo":2026, "Valor":2.59}
 ,{"Fecha":"2025-12-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M12", "Anyo":2025, "Valor":7.28}
 ,{"Fecha":"2025-11-01T00:00:00.000+01:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M11", "Anyo":2025, "Valor":-4.98}
-,{"Fecha":"2025-10-01T00:00:00.000+02:00", "T3_TipoDato":"Provisional", "T3_Periodo":"M10", "Anyo":2025, "Valor":-1.97}
+,{"Fecha":"2025-10-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M10", "Anyo":2025, "Valor":-1.48}
 ,{"Fecha":"2025-09-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M09", "Anyo":2025, "Valor":8.45}
 ,{"Fecha":"2025-08-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M08", "Anyo":2025, "Valor":-0.61}
 ,{"Fecha":"2025-07-01T00:00:00.000+02:00", "T3_TipoDato":"Definitivo", "T3_Periodo":"M07", "Anyo":2025, "Valor":1.83}
